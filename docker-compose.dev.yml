@@ -1,0 +1,17 @@
+services:
+  scanit-dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    working_dir: /workspace
+    network_mode: host
+    environment:
+      SCANIT_CONFIG_DIR: /workspace/config
+    volumes:
+      - ./:/workspace
+      - dev_node_modules:/workspace/node_modules
+      - ./.data/output:/data/output
+      - ./.data/db:/data/db
+
+volumes:
+  dev_node_modules:

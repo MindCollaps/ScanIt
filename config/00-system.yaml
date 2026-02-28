@@ -1,0 +1,126 @@
+# ──────────────────────────────────────────────────────────────
+# ScanIt System Defaults — DO NOT EDIT
+# This file ships with ScanIt and provides sensible defaults.
+# Override any section in your own config file (scanit.yaml).
+# Files are merged alphabetically; later files win.
+# ──────────────────────────────────────────────────────────────
+version: 1
+
+app:
+  name: "ScanIt"
+  host: "0.0.0.0"
+  port: 8080
+  baseUrl: "http://localhost:8080"
+  timezone: "UTC"
+  health:
+    exposeDetails: false
+
+paths:
+  configDir: "/config"
+  outputDir: "/data/output"
+  tempDir: "/tmp/scanit"
+  dbFile: "/data/db/scanit.sqlite"
+
+logging:
+  level: "info"
+  format: "json"
+  redactKeys: ["token", "authorization"]
+
+realtime:
+  transport: "sse"
+  heartbeatSeconds: 15
+  replayBufferSize: 200
+
+resilience:
+  scanner:
+    timeoutMs: 120000
+    retries: 2
+    backoffMs: 1000
+  integration:
+    timeoutMs: 30000
+    retries: 3
+    backoffMs: 2000
+
+profiles:
+  - id: "default"
+    label: "Default"
+    enabled: true
+    defaultPresetId: "doc_300_color"
+    naming:
+      template: "{date}_{time}_{user}_{custom_name}"
+      sanitize: true
+
+presets:
+  - id: "doc_300_color"
+    label: "Document 300dpi Color"
+    scan:
+      source: "ADF Duplex"
+      mode: "Color"
+      resolutionDpi: 300
+      brightness: 0
+      contrast: 0
+      pageSize: "A4"
+    output:
+      format: "pdf"
+      imageFormat: "jpeg"
+      jpegQuality: 88
+      combinePages: true
+
+  - id: "doc_300_gray"
+    label: "Document 300dpi Gray"
+    scan:
+      source: "ADF Duplex"
+      mode: "Gray"
+      resolutionDpi: 300
+      brightness: 0
+      contrast: 0
+      pageSize: "A4"
+    output:
+      format: "pdf"
+      imageFormat: "jpeg"
+      jpegQuality: 88
+      combinePages: true
+
+  - id: "photo_600_color"
+    label: "Photo 600dpi Color"
+    scan:
+      source: "Flatbed"
+      mode: "Color"
+      resolutionDpi: 600
+      brightness: 0
+      contrast: 0
+      pageSize: "A4"
+    output:
+      format: "images"
+      imageFormat: "png"
+      jpegQuality: 95
+      combinePages: false
+
+processing:
+  pdf:
+    engine: "img2pdf"
+    optimize: true
+    metadata:
+      producer: "ScanIt"
+  image:
+    autoRotate: true
+    deskew: false
+    removeBlankPages: false
+    blankPageThreshold: 0.98
+  thumbnails:
+    enabled: true
+    maxWidth: 320
+    format: "jpeg"
+    quality: 80
+  ocr:
+    enabled: false
+    provider: "none"
+    language: "eng"
+
+integrations: {}
+
+features:
+  preview: true
+  historySearch: true
+  darkMode: true
+  configDiagnosticsUi: true

@@ -1,0 +1,13 @@
+services:
+  scanit:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      SCANIT_CONFIG_DIR: /config
+    volumes:
+      - ./config:/config
+      - ./.data/output:/data/output
+      - ./.data/db:/data/db

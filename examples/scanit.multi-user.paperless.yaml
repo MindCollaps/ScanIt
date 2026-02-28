@@ -1,0 +1,97 @@
+# ──────────────────────────────────────────────────────────────
+# ScanIt — Multi-User + Paperless-ngx Example
+# Drop this in config/ alongside 00-system.yaml.
+# Defines two user profiles, each with their own Paperless
+# token and correspondent, sharing a single network scanner.
+# ──────────────────────────────────────────────────────────────
+version: 1
+
+scanners:
+  - id: "office_adf"
+    label: "Office ADF"
+    enabled: true
+    backend: "sane"
+    connection:
+      mode: "network"
+      device: "escl:http://192.168.1.50"
+      discover: true
+    capabilities:
+      adf: true
+      flatbed: true
+      duplex: true
+    defaults:
+      source: "ADF Duplex"
+      mode: "Color"
+      resolutionDpi: 300
+      format: "png"
+
+profiles:
+  # Override the system default profile for the primary user
+  - id: "default"
+    label: "Me"
+    defaultScannerId: "office_adf"
+    integrations:
+      paperless:
+        enabled: true
+        tokenEnv: "PAPERLESS_TOKEN_ME"
+        defaultTags: ["scan", "me"]
+        correspondent: "Me"
+
+  # Second user profile
+  - id: "gf"
+    label: "GF"
+    enabled: true
+    defaultScannerId: "office_adf"
+    defaultPresetId: "doc_300_gray"
+    naming:
+      template: "{date}_{time}_{user}_{custom_name}"
+      sanitize: true
+    integrations:
+      paperless:
+        enabled: true
+        tokenEnv: "PAPERLESS_TOKEN_GF"
+        defaultTags: ["scan", "gf"]
+        correspondent: "GF"
+
+# Bump realtime buffer for heavier usage
+realtime:
+  replayBufferSize: 500
+
+workflows:
+  - id: "me_quick"
+    label: "Quick Scan (Me)"
+    profileId: "default"
+    scannerId: "office_adf"
+    presetId: "doc_300_color"
+    destinationIds: ["local_archive", "paperless_upload"]
+    askForCustomName: true
+    previewBeforeScan: false
+
+  - id: "gf_quick"
+    label: "Quick Scan (GF)"
+    profileId: "gf"
+    scannerId: "office_adf"
+    presetId: "doc_300_gray"
+    destinationIds: ["local_archive", "paperless_upload"]
+    askForCustomName: true
+    previewBeforeScan: false
+
+destinations:
+  - id: "local_archive"
+    type: "filesystem"
+    enabled: true
+    path: "/data/output/archive"
+    namingTemplate: "{date}/{user}/{date}_{time}_{custom_name}.pdf"
+
+  - id: "paperless_upload"
+    type: "integration"
+    enabled: true
+    adapter: "paperless"
+    profileScoped: true
+
+integrations:
+  paperless:
+    baseUrl: "https://paperless.example.com"
+    timeoutMs: 30000
+    verifyTls: true
+    defaultDocumentType: "Inbox"

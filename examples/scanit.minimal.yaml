@@ -1,0 +1,49 @@
+# ──────────────────────────────────────────────────────────────
+# ScanIt — Minimal User Config
+# Drop this into your config/ directory alongside 00-system.yaml.
+# System defaults (app, paths, logging, presets, processing, etc.)
+# are provided by 00-system.yaml; you only need to add your scanner.
+# ──────────────────────────────────────────────────────────────
+version: 1
+
+scanners:
+  - id: "my_scanner"
+    label: "My Scanner"
+    enabled: true
+    backend: "sane"
+    connection:
+      mode: "network"
+      device: "escl:http://scanner.local"
+      discover: true
+    capabilities:
+      adf: true
+      flatbed: true
+      duplex: true
+    defaults:
+      source: "ADF Duplex"
+      mode: "Color"
+      resolutionDpi: 300
+      format: "png"
+
+# Point the default profile at your scanner
+profiles:
+  - id: "default"
+    defaultScannerId: "my_scanner"
+
+# A simple workflow for one-click scanning
+workflows:
+  - id: "quick"
+    label: "Quick Scan"
+    profileId: "default"
+    scannerId: "my_scanner"
+    presetId: "doc_300_color"
+    destinationIds: ["archive"]
+    askForCustomName: true
+    previewBeforeScan: false
+
+destinations:
+  - id: "archive"
+    type: "filesystem"
+    enabled: true
+    path: "/data/output/archive"
+    namingTemplate: "{date}/{date}_{time}_{custom_name}.pdf"

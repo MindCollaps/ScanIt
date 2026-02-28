@@ -1,0 +1,54 @@
+# ──────────────────────────────────────────────────────────────
+# ScanIt User Configuration
+#
+# Add your own scanners, profiles, presets, workflows here.
+# This file is merged ON TOP of the system defaults (00-system.yaml).
+# Arrays (scanners, profiles, presets, etc.) are merged by "id":
+#   - Same id → your values override the default
+#   - New id  → added to the list
+#
+# See examples/ for full configuration references.
+# ──────────────────────────────────────────────────────────────
+version: 1
+
+# ── Scanners ─────────────────────────────────────────────────
+# scanners:
+#   - id: "office_adf"
+#     label: "Office ADF"
+#     enabled: true
+#     backend: "sane"
+#     connection:
+#       mode: "network"
+#       device: "escl:http://192.168.1.50"
+#       discover: true
+#     capabilities:
+#       adf: true
+#       flatbed: true
+#       duplex: true
+#     defaults:
+#       source: "ADF Duplex"
+#       mode: "Color"
+#       resolutionDpi: 300
+#       format: "png"
+
+# ── Profiles ─────────────────────────────────────────────────
+# profiles:
+#   - id: "me"
+#     label: "Me"
+#     enabled: true
+#     defaultScannerId: "office_adf"
+#     defaultPresetId: "doc_300_color"
+#     naming:
+#       template: "{date}_{time}_{user}_{custom_name}"
+#       sanitize: true
+
+# ── Workflows ────────────────────────────────────────────────
+# workflows:
+#   - id: "my_quick"
+#     label: "My Quick Scan"
+#     profileId: "me"
+#     scannerId: "office_adf"
+#     presetId: "doc_300_color"
+#     destinationIds: ["archive"]
+#     askForCustomName: true
+#     previewBeforeScan: false
