@@ -1,0 +1,170 @@
+/*
+ * ScanIt Design Tokens
+ * ────────────────────────────────────────────────────────────────
+ * Centralised colour palette inspired by Tailwind CSS + Open Color.
+ *
+ * Naming convention:
+ *   --c-<scale>-<shade>          raw colour value
+ *   --bg-*                       background tokens
+ *   --text-*                     foreground / text tokens
+ *   --border-*                   border tokens
+ *   --state-<name>-bg / fg       semantic state colours
+ *   --btn-*                      button tokens
+ *   --overlay-*                  translucent overlays
+ */
+
+:root {
+  /* ── Slate scale ────────────────────────────────────────────── */
+  --c-slate-950: #0e1117;
+  --c-slate-900: #0f172a;
+  --c-slate-850: #111827;
+  --c-slate-800: #1e293b;
+  --c-slate-700: #334155;
+  --c-slate-600: #475569;
+  --c-slate-500: #64748b;
+  --c-slate-400: #94a3b8;
+  --c-slate-300: #cbd5e1;
+  --c-slate-200: #e2e8f0;
+  --c-slate-100: #f1f5f9;
+
+  /* ── Sky (primary / accent) ─────────────────────────────────── */
+  --c-sky-700: #0369a1;
+  --c-sky-600: #0284c7;
+  --c-sky-400: #38bdf8;
+  --c-sky-300: #7dd3fc;
+
+  /* ── Blue ───────────────────────────────────────────────────── */
+  --c-blue-900: #172554;
+  --c-blue-400: #60a5fa;
+
+  /* ── Indigo ─────────────────────────────────────────────────── */
+  --c-indigo-400: #818cf8;
+
+  /* ── Cyan / Teal ────────────────────────────────────────────── */
+  --c-teal-800: #164e63;
+  --c-cyan-300: #67e8f9;
+
+  /* ── Green ──────────────────────────────────────────────────── */
+  --c-green-950: #052e16;
+  --c-green-800: #166534;
+  --c-green-400: #4ade80;
+  --c-green-500: #22c55e;
+
+  /* ── Amber / Yellow ─────────────────────────────────────────── */
+  --c-amber-950: #422006;
+  --c-amber-800: #92400e;
+  --c-amber-600: #d97706;
+  --c-amber-400: #fbbf24;
+  --c-amber-50: #fef3c7;
+
+  /* ── Rose / Red ─────────────────────────────────────────────── */
+  --c-rose-950: #450a0a;
+  --c-rose-900: #7f1d1d;
+  --c-rose-800: #881337;
+  --c-rose-700: #9f1239;
+  --c-rose-500: #f43f5e;
+  --c-rose-400: #fb7185;
+  --c-rose-300: #fda4af;
+  --c-rose-200: #fca5a5;
+
+  /* ── Zinc (neutral badges) ──────────────────────────────────── */
+  --c-zinc-700: #3f3f46;
+  --c-zinc-300: #d4d4d8;
+
+  /* ================================================================
+     Semantic Tokens
+     ================================================================ */
+
+  /* ── Backgrounds ────────────────────────────────────────────── */
+  --bg-body: var(--c-slate-950);
+  --bg-surface: var(--c-slate-900);
+  --bg-topbar: var(--c-slate-850);
+  --bg-elevated: var(--c-slate-800);
+  --bg-input: var(--c-slate-900);
+
+  /* ── Foreground / text ──────────────────────────────────────── */
+  --text-primary: var(--c-slate-100);
+  --text-heading: var(--c-slate-200);
+  --text-secondary: var(--c-slate-300);
+  --text-muted: var(--c-slate-400);
+  --text-faint: var(--c-slate-500);
+  --text-placeholder: var(--c-slate-600);
+
+  /* ── Borders ────────────────────────────────────────────────── */
+  --border-default: var(--c-slate-700);
+  --border-hover: var(--c-slate-600);
+  --border-subtle: var(--c-slate-800);
+
+  /* ── Accent / links ─────────────────────────────────────────── */
+  --accent: var(--c-sky-400);
+  --accent-secondary: var(--c-sky-300);
+
+  /* ── Buttons ────────────────────────────────────────────────── */
+  --btn-primary-bg: var(--c-sky-600);
+  --btn-primary-bg-hover: var(--c-sky-700);
+  --btn-primary-text: white;
+  --btn-secondary-text: var(--c-slate-400);
+  --btn-secondary-text-hover: var(--c-slate-200);
+  --btn-secondary-border: var(--c-slate-700);
+  --btn-secondary-border-hover: var(--c-slate-600);
+  --btn-danger-text: var(--c-rose-400);
+  --btn-danger-border: var(--c-rose-900);
+  --btn-danger-bg-hover: var(--c-rose-950);
+  --btn-danger-border-alt: var(--c-rose-800);
+  --btn-danger-text-hover: var(--c-rose-300);
+  --btn-danger-border-alt-hover: var(--c-rose-700);
+
+  /* ── State badges ───────────────────────────────────────────── */
+  --state-success-bg: var(--c-green-950);
+  --state-success-fg: var(--c-green-400);
+  --state-success-fg-hover: var(--c-green-500);
+  --state-error-bg: var(--c-rose-950);
+  --state-error-fg: var(--c-rose-400);
+  --state-error-fg-hover: var(--c-rose-500);
+  --state-running-bg: var(--c-blue-900);
+  --state-running-fg: var(--c-blue-400);
+  --state-appending-bg: var(--c-indigo-900);
+  --state-appending-fg: var(--c-indigo-400);
+  --state-pending-bg: var(--c-amber-950);
+  --state-pending-fg: var(--c-amber-400);
+
+  /* ── Semantic feedback ──────────────────────────────────────── */
+  --color-success: var(--c-green-400);
+  --color-error: var(--c-rose-400);
+  --color-warning: var(--c-amber-400);
+  --color-info: var(--c-sky-400);
+  --color-error-banner-bg: var(--c-rose-950);
+  --color-error-banner-border: var(--c-rose-900);
+  --color-error-banner-text: var(--c-rose-200);
+
+  /* ── Badges (misc) ──────────────────────────────────────────── */
+  --badge-discovered-bg: var(--c-teal-800);
+  --badge-discovered-fg: var(--c-cyan-300);
+  --badge-config-bg: var(--c-zinc-700);
+  --badge-config-fg: var(--c-zinc-300);
+
+  /* ── Notice (warning banner) ────────────────────────────────── */
+  --notice-bg: var(--c-amber-50);
+  --notice-border: var(--c-amber-400);
+  --notice-text: var(--c-amber-800);
+  --notice-link: var(--c-amber-600);
+
+  /* ── Overlays ───────────────────────────────────────────────── */
+  --overlay-modal: rgb(0 0 0 / 60%);
+  --overlay-lightbox: rgb(0 0 0 / 88%);
+  --overlay-nav: rgb(15 23 42 / 70%);
+  --overlay-nav-hover: rgb(15 23 42 / 95%);
+  --overlay-glow: rgb(56 189 248 / 30%);
+  --shadow-heavy: rgb(0 0 0 / 60%);
+
+  /* ── Event borders ──────────────────────────────────────────── */
+  --event-created-border: var(--c-amber-400);
+  --event-running-border: var(--c-blue-400);
+  --event-progress-border: var(--c-indigo-400);
+  --event-succeeded-border: var(--c-green-400);
+  --event-failed-border: var(--c-rose-400);
+
+  /* ── Misc ───────────────────────────────────────────────────── */
+  --success-all-clear-border: var(--c-green-800);
+  --warn-card-border: var(--c-amber-800);
+}

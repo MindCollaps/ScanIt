@@ -23,7 +23,10 @@ This clones the repo to `~/scanit`, builds the Docker image, and starts the cont
 - **Config-driven** — YAML config directory with deep-merge, env interpolation, and hot-reload
 - **Multi-user profiles** — separate naming templates, presets, and integration tokens per user
 - **Workflows** — one-click scan-to-destination pipelines
-- **Real-time updates** — SSE-powered live job progress in the browser
+- **Real-time updates** — SSE-powered live job progress with live page thumbnails in the browser
+- **User presets** — save and manage custom scan presets per scanner
+- **Page management** — reorder, interleave (duplex), append pages; lightbox zoom preview
+- **Theming** — centralised CSS custom-property colour system for easy re-theming
 - **Paperless-ngx integration** — profile-scoped upload with per-user tokens
 - **Docker-native** — single container, `network_mode: host` for mDNS scanner discovery
 
@@ -139,7 +142,8 @@ The dev setup uses `docker-compose.dev.yml` which bind-mounts the source tree an
 |---|---|
 | `bun run build` | Build server + client for production |
 | `bun run typecheck` | Run TypeScript checks (server + client) |
-| `bun run lint` | ESLint (flat config) |
+| `bun run lint` | ESLint + Stylelint |
+| `bun run lint:fix` | Auto-fix lint issues |
 | `bun run format` | Prettier (write) |
 | `bun run format:check` | Prettier (check only) |
 | `bun run ci` | typecheck + lint + format:check |
@@ -161,8 +165,28 @@ The dev setup uses `docker-compose.dev.yml` which bind-mounts the source tree an
 | `GET /api/config/status` | Config diagnostics (hash, load time, errors) |
 | `GET /api/config/runtime` | Full runtime config |
 | `GET /api/scanners` | Configured and discovered scanners |
+| `POST /api/scanners/discover` | Trigger scanner discovery |
+| `GET /api/scanners/discovered` | List previously discovered scanners |
+| `GET /api/scanners/discovered/:id/capabilities` | Get capabilities for a discovered scanner |
+| `GET /api/scanners/diagnostics` | SANE diagnostics report |
+| `GET /api/presets` | All presets (config + user) |
+| `GET /api/presets/user` | User-created presets |
+| `POST /api/presets` | Create a user preset |
+| `PUT /api/presets/:id` | Update a user preset |
+| `DELETE /api/presets/:id` | Delete a user preset |
 | `POST /api/jobs` | Start a scan job |
 | `GET /api/jobs/:id` | Job details |
+| `GET /api/jobs/:id/pages` | List scanned page images |
+| `GET /api/jobs/:id/pages/:index` | Serve a page image by index |
+| `GET /api/jobs/:id/pages/by-name/:filename` | Serve a page image by filename |
+| `GET /api/jobs/:id/pdf` | Download job as PDF |
+| `PUT /api/jobs/:id/filename` | Update custom output filename |
+| `POST /api/jobs/:id/append` | Append more pages (re-scan) |
+| `PUT /api/jobs/:id/pages/reorder` | Reorder pages |
+| `POST /api/jobs/:id/pages/interleave` | Interleave pages (duplex) |
+| `DELETE /api/jobs/:id` | Delete a job and its files |
+| `POST /api/jobs/batch-delete` | Batch delete by IDs or state |
+| `GET /api/history` | Job history list |
 | `GET /api/events` | SSE event stream |
 
 ## Docs

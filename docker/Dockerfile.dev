@@ -1,11 +1,15 @@
 FROM oven/bun:1
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends sane-utils ca-certificates \
+  && apt-get install -y --no-install-recommends \
+     sane-utils ca-certificates avahi-utils libavahi-client3 img2pdf imagemagick \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
 
 EXPOSE 8080 5173
+
+# SANE scanner access requires root for /etc/sane.d writes and device access
+USER root
 
 CMD ["sh", "-c", "bun install && exec bun run dev:inside"]

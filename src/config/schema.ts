@@ -2,7 +2,10 @@ import { z } from 'zod';
 import type { AppConfig } from '../shared/types/config.js';
 
 const scannerIdSchema = z.string().regex(/^[a-z0-9_-]+$/);
-const sharedIdSchema = z.string().min(1).regex(/^[a-z0-9_-]+$/);
+const sharedIdSchema = z
+  .string()
+  .min(1)
+  .regex(/^[a-z0-9_-]+$/);
 
 const scannerSchema = z.object({
   id: scannerIdSchema,
@@ -32,7 +35,7 @@ const profileSchema = z.object({
   label: z.string().min(1),
   enabled: z.boolean(),
   defaultScannerId: sharedIdSchema.optional(),
-  defaultPresetId: sharedIdSchema,
+  defaultPresetId: sharedIdSchema.optional(),
   naming: z.object({
     template: z.string().min(1),
     sanitize: z.boolean(),
@@ -150,7 +153,7 @@ const appConfigSchemaInternal = z.object({
   }),
   scanners: z.array(scannerSchema).default([]),
   profiles: z.array(profileSchema).min(1),
-  presets: z.array(presetSchema).min(1),
+  presets: z.array(presetSchema).default([]),
   workflows: z.array(workflowSchema).default([]),
   processing: z.object({
     pdf: z.object({
@@ -217,9 +220,11 @@ const semanticValidation = (config: AppConfig): string[] => {
 
   for (const profile of config.profiles) {
     if (profile.defaultScannerId && !scannerIds.has(profile.defaultScannerId)) {
-      errors.push(`Profile '${profile.id}' references unknown scanner '${profile.defaultScannerId}'`);
+      errors.push(
+        `Profile '${profile.id}' references unknown scanner '${profile.defaultScannerId}'`,
+      );
     }
-    if (!presetIds.has(profile.defaultPresetId)) {
+    if (profile.defaultPresetId && !presetIds.has(profile.defaultPresetId)) {
       errors.push(`Profile '${profile.id}' references unknown preset '${profile.defaultPresetId}'`);
     }
   }

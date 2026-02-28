@@ -12,18 +12,29 @@ const interpolationRegex = /\$\{([A-Z0-9_]+)(:-([^}]*))?\}/g;
  * Interpolates ${ENV} and ${ENV:-default} expressions in raw config text.
  */
 const interpolateEnv = (raw: string): string => {
-  return raw.replace(interpolationRegex, (_whole, variable: string, _fallbackExpr, fallback: string) => {
-    const fromEnv = process.env[variable];
-    if (fromEnv !== undefined) {
-      return fromEnv;
-    }
+  return raw.replace(
+    interpolationRegex,
+    (_whole, variable: string, _fallbackExpr, fallback: string) => {
+      const fromEnv = process.env[variable];
+      if (fromEnv !== undefined) {
+        return fromEnv;
+      }
 
-    if (fallback !== undefined) {
-      return fallback;
-    }
+      if (fallback !== undefined) {
+        return fallback;
+      }
 
-    return '';
-  });
+      return '';
+    },
+  );
+};
+
+/**
+ * Config key aliases — allows friendly names in YAML while the internal
+ * model keeps the canonical key.  Mapped *before* validation.
+ */
+const CONFIG_KEY_ALIASES: Record<string, string> = {
+  correspondences: 'profiles',
 };
 
 /**
@@ -38,11 +49,33 @@ const isArraySection = (key: string): key is ArraySection => {
 };
 
 /**
+ * Rewrites aliased top-level keys so the rest of the pipeline only sees
+ * canonical names (e.g. correspondences → profiles).
+ */
+const applyKeyAliases = (obj: Record<string, unknown>): Record<string, unknown> => {
+  for (const [alias, canonical] of Object.entries(CONFIG_KEY_ALIASES)) {
+    if (alias in obj) {
+      // Merge into existing canonical array if both present, otherwise just rename
+      if (canonical in obj && Array.isArray(obj[canonical]) && Array.isArray(obj[alias])) {
+        (obj[canonical] as unknown[]).push(...(obj[alias] as unknown[]));
+      } else if (!(canonical in obj)) {
+        obj[canonical] = obj[alias];
+      }
+      delete obj[alias];
+    }
+  }
+  return obj;
+};
+
+/**
  * Deep-merges `overlay` into `base`, mutating `base`.
  * Arrays in ARRAY_SECTIONS are merged by `id`: same id overrides, new ids append.
  * Other objects are recursively merged. Scalars are overwritten.
  */
-const deepMerge = (base: Record<string, unknown>, overlay: Record<string, unknown>): Record<string, unknown> => {
+const deepMerge = (
+  base: Record<string, unknown>,
+  overlay: Record<string, unknown>,
+): Record<string, unknown> => {
   for (const key of Object.keys(overlay)) {
     const baseVal = base[key];
     const overVal = overlay[key];
@@ -89,9 +122,7 @@ export const loadConfigFromDir = async (configDir: string): Promise<ConfigSnapsh
   let entries: string[];
   try {
     const allFiles = await readdir(configDir);
-    entries = allFiles
-      .filter((f) => ['.yaml', '.yml'].includes(extname(f).toLowerCase()))
-      .sort();
+    entries = allFiles.filter((f) => ['.yaml', '.yml'].includes(extname(f).toLowerCase())).sort();
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown read error';
     throw new ConfigLoadError(`Failed to read config directory '${configDir}': ${message}`);
@@ -127,7 +158,7 @@ export const loadConfigFromDir = async (configDir: string): Promise<ConfigSnapsh
 
     // Skip files that only contain `version: 1` and nothing else meaningful
     if (parsed !== null && typeof parsed === 'object') {
-      merged = deepMerge(merged, parsed as Record<string, unknown>);
+      merged = deepMerge(merged, applyKeyAliases(parsed as Record<string, unknown>));
     }
   }
 
@@ -190,7 +221,11 @@ export const loadConfigSnapshot = async (configPath: string): Promise<ConfigSnap
 
   let config: AppConfig;
   try {
-    config = validateConfig(parsed);
+    const aliased =
+      parsed !== null && typeof parsed === 'object'
+        ? applyKeyAliases(parsed as Record<string, unknown>)
+        : parsed;
+    config = validateConfig(aliased);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown validation error';
     throw new ConfigValidationError('Config validation failed', [message]);

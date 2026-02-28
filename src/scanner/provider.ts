@@ -1,7 +1,8 @@
 import type { ScannerDefinition } from '../shared/types/config.js';
+import type { ScannerCapabilityDetails } from '../shared/types/domain.js';
 
 /**
- * Scanner capability model normalized for API responses.
+ * Scanner capability model normalized for API responses (legacy compat).
  */
 export interface ScannerCapabilities {
   adf: boolean;
@@ -20,16 +21,18 @@ export interface DiscoveredScanner {
 
 export interface ScanRequest {
   jobId: string;
-  scanner: ScannerDefinition;
+  device: string;
   source: string;
   mode: string;
   resolutionDpi: number;
   outputDir: string;
+  batchStart?: number;
 }
 
 export interface PreviewRequest {
-  scanner: ScannerDefinition;
+  device: string;
   resolutionDpi: number;
+  mode: string;
   outputPath: string;
 }
 
@@ -37,6 +40,8 @@ export interface ScanProgress {
   pageNumber: number;
   totalPages?: number;
   message: string;
+  /** Filename of the page just produced (for live display). */
+  filename?: string;
 }
 
 export interface ScanResult {
@@ -53,6 +58,11 @@ export interface PreviewResult {
 export interface ScannerProvider {
   discoverScanners(): Promise<DiscoveredScanner[]>;
   getCapabilities(scanner: ScannerDefinition): Promise<ScannerCapabilities>;
+  /** Query real capabilities from hardware via device string */
+  queryCapabilities(device: string): Promise<ScannerCapabilityDetails>;
   previewScan(request: PreviewRequest): Promise<PreviewResult>;
-  executeScan(request: ScanRequest, onProgress: (progress: ScanProgress) => void): Promise<ScanResult>;
+  executeScan(
+    request: ScanRequest,
+    onProgress: (progress: ScanProgress) => void,
+  ): Promise<ScanResult>;
 }

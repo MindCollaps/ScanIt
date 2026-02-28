@@ -25,8 +25,8 @@ scanners:
       resolutionDpi: 300
       format: "png"
 
-# Point the default profile at your scanner
-profiles:
+# Point the default correspondence at your scanner
+correspondences:
   - id: "default"
     defaultScannerId: "my_scanner"
 

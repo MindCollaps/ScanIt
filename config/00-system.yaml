@@ -54,47 +54,17 @@ presets:
   - id: "doc_300_color"
     label: "Document 300dpi Color"
     scan:
-      source: "ADF Duplex"
-      mode: "Color"
-      resolutionDpi: 300
-      brightness: 0
-      contrast: 0
-      pageSize: "A4"
-    output:
-      format: "pdf"
-      imageFormat: "jpeg"
-      jpegQuality: 88
-      combinePages: true
-
-  - id: "doc_300_gray"
-    label: "Document 300dpi Gray"
-    scan:
-      source: "ADF Duplex"
-      mode: "Gray"
-      resolutionDpi: 300
-      brightness: 0
-      contrast: 0
-      pageSize: "A4"
-    output:
-      format: "pdf"
-      imageFormat: "jpeg"
-      jpegQuality: 88
-      combinePages: true
-
-  - id: "photo_600_color"
-    label: "Photo 600dpi Color"
-    scan:
       source: "Flatbed"
       mode: "Color"
-      resolutionDpi: 600
+      resolutionDpi: 300
       brightness: 0
       contrast: 0
       pageSize: "A4"
     output:
-      format: "images"
+      format: "pdf"
       imageFormat: "png"
-      jpegQuality: 95
-      combinePages: false
+      jpegQuality: 85
+      combinePages: true
 
 processing:
   pdf:

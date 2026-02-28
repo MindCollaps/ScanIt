@@ -1,0 +1,24 @@
+{
+  "name": "ScanIt Dev",
+  "image": "mcr.microsoft.com/devcontainers/universal",
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "8gb"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "eamodio.gitlens",
+        "vscode-icons-team.vscode-icons",
+        "Vue.volar",
+        "dbaeumer.vscode-eslint",
+        "stylelint.vscode-stylelint",
+        "esbenp.prettier-vscode",
+        "wart.ariake-dark"
+      ]
+    }
+  },
+  "forwardPorts": [8080, 5173],
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "workspaceFolder": "/workspaces/ScanIt"
+}

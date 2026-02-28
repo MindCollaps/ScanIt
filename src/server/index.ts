@@ -31,6 +31,7 @@ const bootstrap = async (): Promise<void> => {
     scannerProvider,
     jobService,
     sseBroker,
+    store,
   });
 
   const watcher = watchConfigPath(configPath, {
@@ -55,17 +56,26 @@ const bootstrap = async (): Promise<void> => {
     },
   });
 
-  process.on('SIGINT', async () => {
-    await watcher.close();
-    process.exit(0);
-  });
-
-  app.listen(snapshot.config.app.port, snapshot.config.app.host, () => {
+  const server = app.listen(snapshot.config.app.port, snapshot.config.app.host, () => {
     logger.info(
       { host: snapshot.config.app.host, port: snapshot.config.app.port, configPath },
       'server listening',
     );
   });
+
+  const shutdown = async (signal: string): Promise<void> => {
+    logger.info({ signal }, 'Shutting down');
+    server.close();
+    await watcher.close();
+    store.close();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
 };
 
-void bootstrap();
+bootstrap().catch((err) => {
+  logger.fatal({ error: err instanceof Error ? err.message : String(err) }, 'Bootstrap failed');
+  process.exit(1);
+});

@@ -18,7 +18,8 @@ RUN rm -rf node_modules && bun install --frozen-lockfile --production
 FROM oven/bun:1 AS runtime
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends sane-utils ca-certificates \
+  && apt-get install -y --no-install-recommends \
+     sane-utils ca-certificates avahi-utils libavahi-client3 img2pdf imagemagick \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -41,5 +42,8 @@ EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD bun -e "fetch('http://127.0.0.1:8080/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+
+# SANE scanner access requires root for /etc/sane.d writes and device access
+USER root
 
 ENTRYPOINT ["/entrypoint.sh"]

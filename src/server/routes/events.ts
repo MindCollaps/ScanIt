@@ -17,11 +17,15 @@ export const createEventsRouter = (broker: SseBroker): Router => {
 
     const replayBuffer = broker.getReplayBuffer();
     for (const event of replayBuffer) {
-      response.write(`id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`);
+      response.write(
+        `id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`,
+      );
     }
 
     const heartbeatTimer = setInterval(() => {
-      response.write(`event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`);
+      response.write(
+        `event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`,
+      );
     }, 15000);
 
     request.on('close', () => {

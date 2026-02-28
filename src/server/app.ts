@@ -10,6 +10,7 @@ import type { ConfigRuntime } from '../config/runtime.js';
 import type { ScannerProvider } from '../scanner/provider.js';
 import type { JobService } from './services/jobService.js';
 import type { SseBroker } from './sse/broker.js';
+import type { SqliteStore } from '../store/sqlite/db.js';
 import { logger } from './logger.js';
 import { createHealthRouter } from './routes/health.js';
 import { createConfigRouter } from './routes/config.js';
@@ -23,6 +24,7 @@ export interface AppDependencies {
   scannerProvider: ScannerProvider;
   jobService: JobService;
   sseBroker: SseBroker;
+  store: SqliteStore;
 }
 
 /**
@@ -43,12 +45,33 @@ export const createServerApp = (dependencies: AppDependencies): Express => {
           return url === '/healthz' || url === '/readyz';
         },
       },
+      // Keep request logs concise — strip verbose headers
+      serializers: {
+        req(req: { method: string; url: string }) {
+          return {
+            method: req.method,
+            url: req.url,
+          };
+        },
+        res(res: { statusCode: number }) {
+          return {
+            statusCode: res.statusCode,
+          };
+        },
+      },
     }),
   );
 
   app.use(createHealthRouter(dependencies.configRuntime));
   app.use(createConfigRouter(dependencies.configRuntime));
-  app.use(createScannerRouter(dependencies.configRuntime, dependencies.scannerProvider));
+  app.use(
+    createScannerRouter(
+      dependencies.configRuntime,
+      dependencies.scannerProvider,
+      dependencies.store,
+      dependencies.sseBroker,
+    ),
+  );
   app.use(createJobRouter(dependencies.configRuntime, dependencies.jobService));
   app.use(createEventsRouter(dependencies.sseBroker));
 

@@ -117,7 +117,7 @@ export interface ProfileDefinition {
   label: string;
   enabled: boolean;
   defaultScannerId?: string;
-  defaultPresetId: string;
+  defaultPresetId?: string;
   naming: {
     template: string;
     sanitize: boolean;

@@ -1,6 +1,9 @@
 declare module 'bun:sqlite' {
   export class Database {
-    constructor(filename: string, options?: { create?: boolean; readonly?: boolean; readwrite?: boolean });
+    constructor(
+      filename: string,
+      options?: { create?: boolean; readonly?: boolean; readwrite?: boolean },
+    );
     exec(sql: string): void;
     prepare<T = Record<string, unknown>>(sql: string): Statement<T>;
     close(): void;

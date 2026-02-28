@@ -6,7 +6,17 @@
         <RouterLink to="/scan">Scan</RouterLink>
         <RouterLink to="/history">History</RouterLink>
         <RouterLink to="/config">Config</RouterLink>
+        <RouterLink to="/diagnostics">Diagnostics</RouterLink>
       </nav>
+      <p>
+        <span
+          :class="[
+            'status-indicator',
+            isConnected ? 'connected' : hasConnected ? 'disconnected' : 'connecting',
+          ]"
+        ></span>
+        {{ isConnected ? 'Connected' : hasConnected ? 'Disconnected' : 'Connecting...' }}
+      </p>
     </header>
     <main>
       <RouterView />
@@ -14,15 +24,30 @@
   </div>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { provide } from 'vue';
+import { useEventStream, EventStreamKey } from './composables/useEventStream.js';
+
+const { isConnected, hasConnected, messages } = useEventStream();
+provide(EventStreamKey, { isConnected, hasConnected, messages });
+</script>
 
 <style scoped>
 :global(body) {
   margin: 0;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell,
-    Noto Sans, sans-serif;
-  background: #0e1117;
-  color: #f1f5f9;
+  background: var(--bg-body);
+  color: var(--text-primary);
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    Ubuntu,
+    Cantarell,
+    'Noto Sans',
+    sans-serif;
 }
 
 .layout {
@@ -31,11 +56,11 @@
 
 .topbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #334155;
-  background: #111827;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-topbar);
 }
 
 nav {
@@ -44,12 +69,12 @@ nav {
 }
 
 a {
-  color: #cbd5e1;
+  color: var(--text-secondary);
   text-decoration: none;
 }
 
 a.router-link-active {
-  color: #38bdf8;
+  color: var(--accent);
 }
 
 main {
