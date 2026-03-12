@@ -12,7 +12,7 @@ curl -fsSL https://raw.githubusercontent.com/MindCollaps/ScanIt/main/scripts/ins
 
 This clones the repo to `~/scanit`, builds the Docker image, and starts the container. Once complete:
 
-- **Open** http://localhost:8080
+- **Open** http://localhost:8863
 - **Configure** your scanner in `~/scanit/config/scanit.yaml`
 
 > Set a custom install directory with `SCANIT_DIR=/opt/scanit curl -fsSL ... | sh`
@@ -126,7 +126,7 @@ bun dev
 
 # Or without Docker
 bun install
-bun run dev:server   # Express on :8080
+bun run dev:server   # Express on :8863
 bun run dev:client   # Vite on :5173
 ```
 

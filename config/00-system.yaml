@@ -9,8 +9,8 @@ version: 1
 app:
   name: "ScanIt"
   host: "0.0.0.0"
-  port: 8080
-  baseUrl: "http://localhost:8080"
+  port: 8863
+  baseUrl: "http://localhost:8863"
   timezone: "UTC"
   health:
     exposeDetails: false

@@ -16,9 +16,9 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      '/api': 'http://localhost:8080',
-      '/healthz': 'http://localhost:8080',
-      '/readyz': 'http://localhost:8080',
+      '/api': 'http://localhost:8863',
+      '/healthz': 'http://localhost:8863',
+      '/readyz': 'http://localhost:8863',
     },
   },
 });

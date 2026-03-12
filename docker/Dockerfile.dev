@@ -7,7 +7,7 @@ RUN apt-get update \
 
 WORKDIR /workspace
 
-EXPOSE 8080 5173
+EXPOSE 8863 5173
 
 # SANE scanner access requires root for /etc/sane.d writes and device access
 USER root

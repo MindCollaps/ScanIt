@@ -95,7 +95,7 @@ main() {
   say ""
   say "${COLOR_GREEN}${COLOR_BOLD}ScanIt is running!${COLOR_RESET}"
   say ""
-  say "  Open:   ${COLOR_BOLD}http://localhost:8080${COLOR_RESET}"
+  say "  Open:   ${COLOR_BOLD}http://localhost:8863${COLOR_RESET}"
   say "  Config: ${COLOR_BOLD}${INSTALL_DIR}/config/scanit.yaml${COLOR_RESET}"
   say "  Logs:   ${COLOR_BOLD}$COMPOSE -f ${INSTALL_DIR}/docker-compose.yml logs -f${COLOR_RESET}"
   say "  Stop:   ${COLOR_BOLD}$COMPOSE -f ${INSTALL_DIR}/docker-compose.yml down${COLOR_RESET}"

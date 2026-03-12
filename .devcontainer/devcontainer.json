@@ -18,7 +18,7 @@
       ]
     }
   },
-  "forwardPorts": [8080, 5173],
+  "forwardPorts": [8863, 5173],
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "workspaceFolder": "/workspaces/ScanIt"
 }

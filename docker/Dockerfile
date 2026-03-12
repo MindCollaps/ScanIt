@@ -38,10 +38,10 @@ RUN chmod +x /entrypoint.sh \
   && mkdir -p /config /data/output /data/db
 
 VOLUME ["/config", "/data/output", "/data/db"]
-EXPOSE 8080
+EXPOSE 8863
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD bun -e "fetch('http://127.0.0.1:8080/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+  CMD bun -e "fetch('http://127.0.0.1:8863/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 
 # SANE scanner access requires root for /etc/sane.d writes and device access
 USER root

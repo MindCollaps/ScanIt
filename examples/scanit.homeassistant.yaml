@@ -29,8 +29,8 @@ integrations:
       # Each button becomes an HA button entity + status sensor.
       # Only presetId is required; profileId and scannerId fall
       # back to config defaults if omitted.
-      - id: "scan_noah"
-        label: "Scan Noah"
+      - id: "scan_mrx"
+        label: "Scan MRX"
         presetId: "doc_300_color"
         # scannerId: "office_adf"   # optional — falls back to first enabled scanner
 

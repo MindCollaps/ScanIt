@@ -18,7 +18,7 @@ services:
       - /var/run/dbus:/var/run/dbus
       - /run/avahi-daemon/socket:/run/avahi-daemon/socket
     healthcheck:
-      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:8863/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
