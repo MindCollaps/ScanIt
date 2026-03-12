@@ -1,6 +1,8 @@
 services:
   scanit:
-    image:  ghcr.io/mindcollaps/scanit:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     restart: unless-stopped
     network_mode: host
     environment:
