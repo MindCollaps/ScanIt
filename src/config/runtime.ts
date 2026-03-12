@@ -1,5 +1,5 @@
 import type { ConfigSnapshot, ConfigStatus } from '../shared/types/config.js';
-import { ConfigValidationError } from './errors.js';
+import { ConfigLoadError, ConfigValidationError } from './errors.js';
 import { loadConfigSnapshot } from './loader.js';
 
 /**
@@ -8,7 +8,7 @@ import { loadConfigSnapshot } from './loader.js';
  */
 export class ConfigRuntime {
   private currentSnapshot: ConfigSnapshot | undefined;
-  private lastError: { message: string; occurredAt: string } | undefined;
+  private lastError: { message: string; issues: string[]; occurredAt: string } | undefined;
 
   public constructor(private readonly configPath: string) {}
 
@@ -45,7 +45,7 @@ export class ConfigRuntime {
     return snapshot;
   }
 
-  public async reloadSnapshot(): Promise<{ snapshot?: ConfigSnapshot; error?: string }> {
+  public async reloadSnapshot(): Promise<{ snapshot?: ConfigSnapshot; error?: string; issues?: string[] }> {
     try {
       const snapshot = await loadConfigSnapshot(this.configPath);
       this.currentSnapshot = snapshot;
@@ -53,8 +53,14 @@ export class ConfigRuntime {
       return { snapshot };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown config reload failure';
-      this.lastError = { message, occurredAt: new Date().toISOString() };
-      return { error: message };
+      const issues =
+        error instanceof ConfigValidationError
+          ? error.issues
+          : error instanceof ConfigLoadError
+            ? [error.message]
+            : [message];
+      this.lastError = { message, issues, occurredAt: new Date().toISOString() };
+      return { error: message, issues };
     }
   }
 }

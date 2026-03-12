@@ -5,15 +5,17 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { ConfigRuntime } from '../../config/runtime.js';
 import type { JobService } from '../services/jobService.js';
-import type { JobState } from '../../shared/types/domain.js';
+import type { AdapterRegistry } from '../../integration/adapter.js';
+import type { JobState, JobTrigger } from '../../shared/types/domain.js';
 
 const execFileAsync = promisify(execFile);
 
 interface CreateJobBody {
-  profileId: string;
   scannerId: string;
   presetId: string;
   outputFilename?: string;
+  trigger?: JobTrigger;
+  consumers?: string[];
   overrides?: {
     device?: string;
     source?: string;
@@ -28,31 +30,65 @@ const isCreateJobBody = (value: unknown): value is CreateJobBody => {
   }
 
   const record = value as Record<string, unknown>;
-  return (
-    typeof record.profileId === 'string' &&
-    typeof record.scannerId === 'string' &&
-    (typeof record.presetId === 'string' || typeof record.presetId === 'undefined')
-  );
+  if (
+    typeof record.scannerId !== 'string' ||
+    (typeof record.presetId !== 'string' && typeof record.presetId !== 'undefined')
+  ) {
+    return false;
+  }
+
+  if (
+    record.trigger !== undefined &&
+    record.trigger !== 'webui' &&
+    record.trigger !== 'api'
+  ) {
+    return false;
+  }
+
+  if (
+    record.consumers !== undefined &&
+    (!Array.isArray(record.consumers) ||
+      !record.consumers.every((c: unknown) => typeof c === 'string'))
+  ) {
+    return false;
+  }
+
+  return true;
 };
 
 /**
  * Scan job creation and retrieval routes.
  */
-export const createJobRouter = (runtime: ConfigRuntime, jobService: JobService): Router => {
+export const createJobRouter = (
+  runtime: ConfigRuntime,
+  jobService: JobService,
+  adapterRegistry: AdapterRegistry,
+): Router => {
   const router = Router();
+
+  /** List available consumer adapter types. */
+  router.get('/api/consumers', (_request, response) => {
+    response.json(adapterRegistry.types());
+  });
 
   router.post('/api/jobs', async (request, response, next) => {
     try {
       if (!isCreateJobBody(request.body)) {
         response.status(400).json({
           code: 'BAD_REQUEST',
-          message: 'Body must include profileId, scannerId and presetId',
+          message: 'Body must include scannerId and presetId',
         });
         return;
       }
 
       const snapshot = runtime.getSnapshot();
-      const job = await jobService.createAndRunJob(request.body, snapshot.config);
+      const job = await jobService.createAndRunJob(
+        {
+          ...request.body,
+          trigger: request.body.trigger ?? 'api',
+        },
+        snapshot.config,
+      );
       response.status(202).json(job);
     } catch (error) {
       next(error);
@@ -339,6 +375,26 @@ export const createJobRouter = (runtime: ConfigRuntime, jobService: JobService):
         snapshot.config,
       );
       response.json({ ok: true, order: newOrder });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  /** Manually deliver a completed job to a specific consumer. Body: { consumer: string } */
+  router.post('/api/jobs/:jobId/deliver', async (request, response, next) => {
+    try {
+      const body = request.body as Record<string, unknown>;
+      if (typeof body.consumer !== 'string' || !body.consumer) {
+        response.status(400).json({ code: 'BAD_REQUEST', message: 'Body must include consumer: string' });
+        return;
+      }
+      const snapshot = runtime.getSnapshot();
+      const result = await jobService.deliverToConsumer(
+        request.params.jobId,
+        body.consumer,
+        snapshot.config,
+      );
+      response.json(result);
     } catch (error) {
       next(error);
     }

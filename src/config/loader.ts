@@ -33,14 +33,12 @@ const interpolateEnv = (raw: string): string => {
  * Config key aliases — allows friendly names in YAML while the internal
  * model keeps the canonical key.  Mapped *before* validation.
  */
-const CONFIG_KEY_ALIASES: Record<string, string> = {
-  correspondences: 'profiles',
-};
+const CONFIG_KEY_ALIASES: Record<string, string> = {};
 
 /**
  * ID-keyed array sections that should be merged by `id` instead of replaced.
  */
-const ARRAY_SECTIONS = ['scanners', 'profiles', 'presets', 'workflows', 'destinations'] as const;
+const ARRAY_SECTIONS = ['scanners', 'presets', 'workflows', 'destinations'] as const;
 
 type ArraySection = (typeof ARRAY_SECTIONS)[number];
 
@@ -166,6 +164,7 @@ export const loadConfigFromDir = async (configDir: string): Promise<ConfigSnapsh
   try {
     config = validateConfig(merged);
   } catch (error: unknown) {
+    if (error instanceof ConfigValidationError) throw error;
     const message = error instanceof Error ? error.message : 'Unknown validation error';
     throw new ConfigValidationError('Config validation failed', [message]);
   }
@@ -227,6 +226,7 @@ export const loadConfigSnapshot = async (configPath: string): Promise<ConfigSnap
         : parsed;
     config = validateConfig(aliased);
   } catch (error: unknown) {
+    if (error instanceof ConfigValidationError) throw error;
     const message = error instanceof Error ? error.message : 'Unknown validation error';
     throw new ConfigValidationError('Config validation failed', [message]);
   }

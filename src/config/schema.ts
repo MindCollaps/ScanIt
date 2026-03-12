@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AppConfig } from '../shared/types/config.js';
+import { ConfigValidationError } from './errors.js';
 
 const scannerIdSchema = z.string().regex(/^[a-z0-9_-]+$/);
 const sharedIdSchema = z
@@ -30,30 +31,6 @@ const scannerSchema = z.object({
   }),
 });
 
-const profileSchema = z.object({
-  id: sharedIdSchema,
-  label: z.string().min(1),
-  enabled: z.boolean(),
-  defaultScannerId: sharedIdSchema.optional(),
-  defaultPresetId: sharedIdSchema.optional(),
-  naming: z.object({
-    template: z.string().min(1),
-    sanitize: z.boolean(),
-  }),
-  integrations: z
-    .object({
-      paperless: z
-        .object({
-          enabled: z.boolean(),
-          tokenEnv: z.string().min(1),
-          defaultTags: z.array(z.string()),
-          correspondent: z.string().min(1).optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-});
-
 const presetSchema = z.object({
   id: sharedIdSchema,
   label: z.string().min(1),
@@ -70,13 +47,13 @@ const presetSchema = z.object({
     imageFormat: z.enum(['jpeg', 'png', 'tiff']),
     jpegQuality: z.number().int().min(1).max(100),
     combinePages: z.boolean(),
+    consumers: z.array(z.string().min(1)).optional(),
   }),
 });
 
 const workflowSchema = z.object({
   id: sharedIdSchema,
   label: z.string().min(1),
-  profileId: sharedIdSchema,
   scannerId: sharedIdSchema,
   presetId: sharedIdSchema,
   destinationIds: z.array(sharedIdSchema).min(1),
@@ -92,7 +69,6 @@ const destinationSchema = z
     path: z.string().min(1).optional(),
     namingTemplate: z.string().min(1).optional(),
     adapter: z.literal('paperless').optional(),
-    profileScoped: z.boolean().optional(),
   })
   .superRefine((value, context) => {
     if (value.type === 'filesystem' && !value.path) {
@@ -152,7 +128,6 @@ const appConfigSchemaInternal = z.object({
     }),
   }),
   scanners: z.array(scannerSchema).default([]),
-  profiles: z.array(profileSchema).min(1),
   presets: z.array(presetSchema).default([]),
   workflows: z.array(workflowSchema).default([]),
   processing: z.object({
@@ -194,11 +169,48 @@ const appConfigSchemaInternal = z.object({
   destinations: z.array(destinationSchema).default([]),
   integrations: z.object({
     paperless: z
+      .array(
+        z.object({
+          id: sharedIdSchema,
+          label: z.string().min(1),
+          baseUrl: z.url(),
+          /** Direct API token value (less secure, prefer tokenEnv for production) */
+          token: z.string().min(1).optional(),
+          /** Name of the environment variable that holds the API token */
+          tokenEnv: z.string().min(1).optional(),
+          timeoutMs: z.number().int().positive(),
+          verifyTls: z.boolean(),
+          defaultDocumentType: z.string().min(1).optional(),
+        }).refine(
+          (data) => data.token !== undefined || data.tokenEnv !== undefined,
+          { message: 'Either token or tokenEnv must be provided', path: ['token'] },
+        ),
+      )
+      .default([]),
+    homeassistant: z
       .object({
-        baseUrl: z.url(),
-        timeoutMs: z.number().int().positive(),
-        verifyTls: z.boolean(),
-        defaultDocumentType: z.string().min(1),
+        enabled: z.boolean(),
+        mqtt: z.object({
+          brokerUrl: z.string().min(1),
+          username: z.string().min(1),
+          password: z.string().min(1),
+          clientId: z.string().min(1).optional(),
+          topicPrefix: z.string().min(1).optional(),
+        }),
+        discovery: z.object({
+          prefix: z.string().min(1),
+          deviceName: z.string().min(1),
+          deviceId: z.string().min(1),
+        }),
+        buttons: z.array(
+          z.object({
+            id: z.string().regex(/^[a-z0-9_]+$/),
+            label: z.string().min(1),
+            presetId: z.string().min(1),
+            scannerId: scannerIdSchema.optional(),
+            consumerOverride: z.array(z.string().min(1)).optional(),
+          }),
+        ),
       })
       .optional(),
   }),
@@ -213,33 +225,13 @@ const appConfigSchemaInternal = z.object({
 const semanticValidation = (config: AppConfig): string[] => {
   const errors: string[] = [];
 
-  const scannerIds = new Set(config.scanners.map((item) => item.id));
-  const presetIds = new Set(config.presets.map((item) => item.id));
-  const profileIds = new Set(config.profiles.map((item) => item.id));
+  // Note: scannerIds and presetIds are intentionally not validated against
+  // config-only sets — both may reference entries discovered/created at runtime
+  // (discovered scanners and user presets stored in the DB).
+
   const destinationIds = new Set(config.destinations.map((item) => item.id));
 
-  for (const profile of config.profiles) {
-    if (profile.defaultScannerId && !scannerIds.has(profile.defaultScannerId)) {
-      errors.push(
-        `Profile '${profile.id}' references unknown scanner '${profile.defaultScannerId}'`,
-      );
-    }
-    if (profile.defaultPresetId && !presetIds.has(profile.defaultPresetId)) {
-      errors.push(`Profile '${profile.id}' references unknown preset '${profile.defaultPresetId}'`);
-    }
-  }
-
   for (const workflow of config.workflows) {
-    if (!profileIds.has(workflow.profileId)) {
-      errors.push(`Workflow '${workflow.id}' references unknown profile '${workflow.profileId}'`);
-    }
-    if (!scannerIds.has(workflow.scannerId)) {
-      errors.push(`Workflow '${workflow.id}' references unknown scanner '${workflow.scannerId}'`);
-    }
-    if (!presetIds.has(workflow.presetId)) {
-      errors.push(`Workflow '${workflow.id}' references unknown preset '${workflow.presetId}'`);
-    }
-
     for (const destinationId of workflow.destinationIds) {
       if (!destinationIds.has(destinationId)) {
         errors.push(`Workflow '${workflow.id}' references unknown destination '${destinationId}'`);
@@ -247,20 +239,38 @@ const semanticValidation = (config: AppConfig): string[] => {
     }
   }
 
-  if (!config.profiles.some((item) => item.enabled)) {
-    errors.push('At least one profile must be enabled');
-  }
-
   for (const destination of config.destinations) {
     if (destination.type === 'integration' && destination.adapter === 'paperless') {
-      if (!config.integrations.paperless) {
-        errors.push(`Destination '${destination.id}' requires integrations.paperless`);
+      if (!config.integrations.paperless?.length) {
+        errors.push(`Destination '${destination.id}' requires at least one integrations.paperless entry`);
       }
     }
   }
 
+  const paperlessIds = new Set<string>();
+  for (const pl of config.integrations.paperless ?? []) {
+    if (paperlessIds.has(pl.id)) {
+      errors.push(`Paperless instance '${pl.id}' is duplicated`);
+    }
+    paperlessIds.add(pl.id);
+  }
+
   if (config.paths.outputDir === config.paths.tempDir) {
     errors.push('paths.outputDir must not equal paths.tempDir');
+  }
+
+  if (config.integrations.homeassistant?.enabled) {
+    const ha = config.integrations.homeassistant;
+    const buttonIds = new Set<string>();
+    for (const button of ha.buttons) {
+      if (buttonIds.has(button.id)) {
+        errors.push(`Home Assistant button '${button.id}' is duplicated`);
+      }
+      buttonIds.add(button.id);
+
+      // presetId and scannerId are not validated here — both may reference
+      // entries that only exist at runtime (DB presets / discovered scanners)
+    }
   }
 
   return errors;
@@ -275,12 +285,12 @@ export const validateConfig = (value: unknown): AppConfig => {
   const parsed = appConfigSchema.safeParse(value);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((item) => `${item.path.join('.')}: ${item.message}`);
-    throw new Error(issues.join('; '));
+    throw new ConfigValidationError('Schema validation failed', issues);
   }
 
   const semanticErrors = semanticValidation(parsed.data);
   if (semanticErrors.length > 0) {
-    throw new Error(semanticErrors.join('; '));
+    throw new ConfigValidationError('Semantic validation failed', semanticErrors);
   }
 
   return parsed.data;

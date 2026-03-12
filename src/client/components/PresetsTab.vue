@@ -136,6 +136,24 @@
         </label>
       </div>
 
+      <!-- Consumers -->
+      <div v-if="availableConsumers.length" class="consumers-section">
+        <span class="consumers-label">
+          Consumers <span class="optional">(where scan output goes)</span>
+        </span>
+        <div class="consumer-checkboxes">
+          <label v-for="c in availableConsumers" :key="c" class="consumer-check">
+            <input
+              type="checkbox"
+              :value="c"
+              :checked="presetForm.consumers?.includes(c)"
+              @change="toggleConsumer(c)"
+            />
+            {{ c }}
+          </label>
+        </div>
+      </div>
+
       <button
         class="btn-primary"
         :disabled="!presetForm.label || isSavingPreset"
@@ -164,6 +182,12 @@
             {{ preset.origin }}
           </span>
         </div>
+        <div class="card-id-row">
+          <code class="card-id">{{ preset.id }}</code>
+          <button class="btn-copy" title="Copy preset ID" @click="copyPresetId(preset.id)">
+            {{ copiedId === preset.id ? '✓' : '⧉' }}
+          </button>
+        </div>
         <div class="card-meta">
           <template v-if="preset.origin === 'config'">
             {{ preset.scan.source }} · {{ preset.scan.mode }} · {{ preset.scan.resolutionDpi }} DPI
@@ -171,6 +195,12 @@
           <template v-else>
             {{ preset.source }} · {{ preset.mode }} · {{ preset.resolutionDpi }} DPI
           </template>
+        </div>
+        <div
+          v-if="preset.origin === 'user' && preset.consumers?.length"
+          class="card-consumers"
+        >
+          Consumers: {{ preset.consumers.join(', ') }}
         </div>
         <div v-if="preset.origin === 'user'" class="card-actions">
           <button class="btn-sm" @click="emit('edit', preset as any)">Edit</button>
@@ -184,11 +214,12 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import type { ScannerDefinition } from '../../shared/types/config.js';
 import type { DiscoveredScannerRecord, UserPreset } from '../../shared/types/domain.js';
 import type { AnyPreset } from '../composables/useApi.js';
 
-defineProps<{
+const props = defineProps<{
   discoveredScanners: DiscoveredScannerRecord[];
   configuredScanners: ScannerDefinition[];
   allPresets: AnyPreset[];
@@ -200,6 +231,7 @@ defineProps<{
   availableSources: string[];
   availableModes: string[];
   availableResolutions: number[];
+  availableConsumers: string[];
 }>();
 
 const emit = defineEmits<{
@@ -214,6 +246,24 @@ const emit = defineEmits<{
 
 // Two-way binding helpers via emit
 const updateField = (field: string, value: unknown) => emit('update:presetForm', field, value);
+
+const copiedId = ref('');
+let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+const copyPresetId = async (id: string) => {
+  await navigator.clipboard.writeText(id);
+  copiedId.value = id;
+  clearTimeout(copiedTimer);
+  copiedTimer = setTimeout(() => { copiedId.value = ''; }, 1500);
+};
+
+const toggleConsumer = (consumer: string) => {
+  const current: string[] = (props.presetForm as Record<string, unknown>).consumers as string[] ?? [];
+  const next = current.includes(consumer)
+    ? current.filter((c: string) => c !== consumer)
+    : [...current, consumer];
+  updateField('consumers', next);
+};
 </script>
 
 <style scoped>
@@ -386,5 +436,74 @@ input[type='range'] {
 .btn-danger:hover {
   border-color: var(--btn-danger-border-alt-hover);
   color: var(--btn-danger-text-hover);
+}
+
+.consumers-section {
+  margin-bottom: 1rem;
+}
+
+.consumers-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 0.4rem;
+}
+
+.optional {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+}
+
+.consumer-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+}
+
+.consumer-check {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.card-id-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.card-id {
+  padding: 0.15em 0.45em;
+  border-radius: 0.25rem;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  user-select: all;
+}
+
+.btn-copy {
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--border-default);
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.btn-copy:hover {
+  border-color: var(--border-hover);
+  color: var(--text-heading);
+}
+
+.card-consumers {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
 }
 </style>

@@ -19,10 +19,6 @@
             <span :class="['state-badge', stateClass]">{{ job.state }}</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Correspondence</span>
-            <span>{{ job.profileId }}</span>
-          </div>
-          <div class="info-item">
             <span class="info-label">Scanner</span>
             <span>{{ job.scannerId }}</span>
           </div>
@@ -45,6 +41,16 @@
           <div v-if="job.startedAt && job.finishedAt" class="info-item">
             <span class="info-label">Duration</span>
             <span>{{ duration }}</span>
+          </div>
+          <div v-if="job.trigger" class="info-item">
+            <span class="info-label">Triggered by</span>
+            <span>{{ formatTrigger(job.trigger) }}</span>
+          </div>
+          <div v-if="job.consumers?.length" class="info-item info-item--wide">
+            <span class="info-label">Consumers</span>
+            <div class="consumer-pills">
+              <span v-for="c in job.consumers" :key="c" class="consumer-pill">{{ formatConsumer(c) }}</span>
+            </div>
           </div>
         </div>
 
@@ -90,6 +96,24 @@
         <span v-if="pages.length" class="page-count"
           >{{ pages.length }} page{{ pages.length !== 1 ? 's' : '' }}</span
         >
+      </div>
+
+      <!-- Manual deliver panel -->
+      <div
+        v-if="job.state === 'SUCCEEDED' && deliverableConsumers.length"
+        class="deliver-panel"
+      >
+        <span class="deliver-label">Send to:</span>
+        <button
+          v-for="c in deliverableConsumers"
+          :key="c"
+          class="btn-secondary btn-sm"
+          :disabled="deliveringTo === c"
+          @click="doDeliver(c)"
+        >
+          {{ deliveringTo === c ? 'Sending…' : formatConsumer(c) }}
+        </button>
+        <span v-if="deliverMessage" :class="deliverMessageClass" class="deliver-message">{{ deliverMessage }}</span>
       </div>
 
       <!-- Interleave Controls -->
@@ -162,9 +186,11 @@
               <button
                 class="rotate-btn"
                 title="Rotate 90°"
+                :disabled="rotatingFile !== null"
                 @click="rotateSinglePage(page.filename)"
               >
-                &#8635;
+                <SpinnerIcon v-if="rotatingFile === page.filename" size="xs" />
+                <template v-else>&#8635;</template>
               </button>
               <button
                 class="del-btn"
@@ -196,6 +222,7 @@
         :show-gallery="false"
         :deletable="true"
         :rotatable="true"
+        :rotating-file="rotatingFile"
         @delete="onDeleteFromLightbox"
         @rotate="onRotateFromLightbox"
       />
@@ -205,9 +232,9 @@
         <h4>Activity Log</h4>
         <ul class="events-list">
           <li v-for="(evt, i) in events" :key="i" class="event-item">
-            <span class="event-dot" :class="eventDotClass(evt.eventType)" />
+            <span class="event-dot" :class="eventDotClass(evt)" />
             <div class="event-body">
-              <span class="event-type">{{ formatEventType(evt.eventType) }}</span>
+              <span class="event-type">{{ formatEventType(evt) }}</span>
               <span class="event-time">{{ formatDate(evt.createdAt) }}</span>
             </div>
             <span v-if="eventDetail(evt)" class="event-detail">{{ eventDetail(evt) }}</span>
@@ -226,6 +253,7 @@ import { useRoute, useRouter } from 'vue-router';
 import type { ScanJob } from '../../shared/types/domain.js';
 import { useApi, type JobPage, type JobEvent } from '../composables/useApi.js';
 import PagePreview from '../components/PagePreview.vue';
+import SpinnerIcon from '../components/SpinnerIcon.vue';
 import { formatDate } from '../utils/formatters.js';
 
 const route = useRoute();
@@ -246,6 +274,10 @@ const successMessage = ref('');
 const splitIndex = ref(1);
 const reverseSecond = ref(false);
 const editFilename = ref('');
+const availableConsumers = ref<string[]>([]);
+const deliveringTo = ref<string | null>(null);
+const deliverMessage = ref('');
+const deliverMessageClass = ref('');
 let pollTimer: ReturnType<typeof setInterval> | undefined;
 
 const dragIdx = ref<number | null>(null);
@@ -257,6 +289,11 @@ const previewFrom = (idx: number): void => {
 
 const isTerminal = computed(
   () => job.value?.state === 'SUCCEEDED' || job.value?.state === 'FAILED',
+);
+
+/** Consumers that accept manual delivery (skip filesystem — it's automatic) */
+const deliverableConsumers = computed(() =>
+  availableConsumers.value.filter((c) => c !== 'filesystem'),
 );
 
 const stateClass = computed(() => {
@@ -286,19 +323,51 @@ const duration = computed(() => {
 const formatPreset = (presetId: string): string =>
   !presetId || presetId === 'adhoc' ? 'Ad-hoc' : presetId;
 
-const formatEventType = (type: string): string => {
+const formatTrigger = (trigger: string): string => {
+  const map: Record<string, string> = {
+    webui: 'Web UI',
+    api: 'API',
+    hassio: 'Home Assistant',
+  };
+  return map[trigger] ?? trigger;
+};
+
+const formatConsumer = (consumer: string): string => {
+  if (consumer === 'filesystem') return 'Filesystem';
+  const [type, id] = consumer.split(':');
+  if (type && id) return `${type.charAt(0).toUpperCase() + type.slice(1)}: ${id}`;
+  return consumer;
+};
+
+const formatEventType = (evt: JobEvent): string => {
+  const p = evt.payload;
+  const consumer = typeof p.consumer === 'string' ? formatConsumer(p.consumer) : null;
+  if (evt.eventType === 'delivery_completed') {
+    return consumer ? `Delivered to ${consumer}` : 'Delivered';
+  }
+  if (evt.eventType === 'delivery_failed') {
+    return consumer ? `Delivery failed (${consumer})` : 'Delivery Failed';
+  }
+  if (evt.eventType === 'delivery_skipped') {
+    return consumer ? `Delivery skipped (${consumer})` : 'Delivery Skipped';
+  }
   const map: Record<string, string> = {
     progress: 'Scan Progress',
     completed: 'Scan Completed',
     failed: 'Scan Failed',
     appended: 'Pages Appended',
   };
-  return map[type] ?? type;
+  return map[evt.eventType] ?? evt.eventType;
 };
 
-const eventDotClass = (type: string): string => {
+const eventDotClass = (evt: JobEvent): string => {
+  const type = evt.eventType;
   if (type === 'completed' || type === 'appended') return 'dot-success';
-  if (type === 'failed') return 'dot-error';
+  if (type === 'failed' || type === 'delivery_failed') return 'dot-error';
+  if (type === 'delivery_completed') {
+    return evt.payload.success === true ? 'dot-success' : 'dot-error';
+  }
+  if (type === 'delivery_skipped') return 'dot-warn';
   return 'dot-info';
 };
 
@@ -315,6 +384,12 @@ const eventDetail = (evt: JobEvent): string => {
   }
   if (evt.eventType === 'failed' && typeof p.message === 'string') {
     return p.message;
+  }
+  if (
+    (evt.eventType === 'delivery_completed' || evt.eventType === 'delivery_failed') &&
+    typeof p.error === 'string'
+  ) {
+    return p.error;
   }
   return '';
 };
@@ -452,16 +527,21 @@ const deleteSinglePage = async (filename: string): Promise<void> => {
   }
 };
 
+const rotatingFile = ref<string | null>(null);
+
 const rotateSinglePage = async (filename: string, degrees = 90): Promise<void> => {
   if (!job.value) return;
   errorMessage.value = '';
   successMessage.value = '';
+  rotatingFile.value = filename;
   try {
     await api.rotatePage(job.value.id, filename, degrees);
     successMessage.value = `Page rotated ${degrees}°`;
     await loadJob();
   } catch (e: unknown) {
     errorMessage.value = e instanceof Error ? e.message : 'Rotate failed';
+  } finally {
+    rotatingFile.value = null;
   }
 };
 
@@ -491,6 +571,29 @@ const onRotateFromLightbox = async (idx: number): Promise<void> => {
   }
 };
 
+const doDeliver = async (consumer: string): Promise<void> => {
+  if (!job.value || deliveringTo.value) return;
+  deliveringTo.value = consumer;
+  deliverMessage.value = '';
+  try {
+    const result = await api.deliverJob(job.value.id, consumer);
+    if (result.success) {
+      deliverMessage.value = `Sent to ${formatConsumer(consumer)}`;
+      deliverMessageClass.value = 'deliver-ok';
+    } else {
+      deliverMessage.value = result.error ?? 'Delivery failed';
+      deliverMessageClass.value = 'deliver-err';
+    }
+    // Reload events so the new delivery_completed entry appears
+    events.value = await api.getJobEvents(job.value.id);
+  } catch (e: unknown) {
+    deliverMessage.value = e instanceof Error ? e.message : 'Delivery failed';
+    deliverMessageClass.value = 'deliver-err';
+  } finally {
+    deliveringTo.value = null;
+  }
+};
+
 const saveFilename = async (): Promise<void> => {
   if (!job.value) return;
   const newName = editFilename.value.trim();
@@ -517,6 +620,11 @@ onMounted(async () => {
     } catch {
       /* non-critical */
     }
+  }
+  try {
+    availableConsumers.value = await api.getAvailableConsumers();
+  } catch {
+    /* non-critical */
   }
   if (
     job.value &&
@@ -570,6 +678,25 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+}
+.info-item--wide {
+  grid-column: 1 / -1;
+}
+.consumer-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+.consumer-pill {
+  display: inline-block;
+  padding: 0.15em 0.55em;
+  border: 1px solid var(--border-default);
+  border-radius: 1rem;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-family: monospace;
 }
 .info-label {
   color: var(--text-faint);
@@ -883,9 +1010,13 @@ onUnmounted(() => {
   line-height: 1;
   cursor: pointer;
 }
-.rotate-btn:hover {
+.rotate-btn:hover:not(:disabled) {
   border-color: var(--btn-primary-bg);
   color: var(--text-heading);
+}
+.rotate-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .del-btn {
@@ -944,8 +1075,41 @@ onUnmounted(() => {
 .dot-error {
   background: var(--color-error);
 }
+.dot-warn {
+  background: var(--color-warning, #f59e0b);
+}
 .dot-info {
   background: var(--accent);
+}
+
+/* ── Manual Deliver ─────────────────────────────────────────── */
+.deliver-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-default);
+  border-radius: 0.5rem;
+  background: var(--bg-elevated);
+}
+.deliver-label {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-right: 0.25rem;
+}
+.deliver-message {
+  font-size: 0.8rem;
+  margin-left: 0.25rem;
+}
+.deliver-ok {
+  color: var(--color-success);
+}
+.deliver-err {
+  color: var(--color-error);
 }
 .event-body {
   display: flex;

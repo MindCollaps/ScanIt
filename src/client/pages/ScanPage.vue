@@ -11,15 +11,6 @@
 
     <div v-if="loaded && (hasScanners || discoveredScanners.length)" class="grid">
       <label>
-        Correspondence
-        <select v-model="selectedProfileId">
-          <option v-for="profile in profiles" :key="profile.id" :value="profile.id">
-            {{ profile.label }}
-          </option>
-        </select>
-      </label>
-
-      <label>
         Scanner
         <select v-model="selectedScannerId" @change="onScannerChange">
           <optgroup v-if="configuredScanners.length" label="Configured">
@@ -85,6 +76,25 @@
           class="filename-input"
         />
       </label>
+    </div>
+
+    <!-- Consumers -->
+    <div v-if="loaded && (hasScanners || discoveredScanners.length) && availableConsumers.length" class="consumers-panel">
+      <label class="consumers-label">
+        Consumers
+        <span class="optional">(where scan output goes)</span>
+      </label>
+      <div class="consumer-checkboxes">
+        <label v-for="c in availableConsumers" :key="c" class="consumer-check">
+          <input
+            type="checkbox"
+            :value="c"
+            :checked="selectedConsumers.includes(c)"
+            @change="toggleConsumer(c)"
+          />
+          {{ c }}
+        </label>
+      </div>
     </div>
 
     <div v-if="loaded && (hasScanners || discoveredScanners.length)" class="actions">
@@ -198,7 +208,6 @@ const runtimeConfig = ref<AppConfig | null>(null);
 const discoveredScanners = ref<DiscoveredScannerRecord[]>([]);
 const allPresets = ref<AnyPreset[]>([]);
 
-const selectedProfileId = ref('');
 const selectedScannerId = ref('');
 const selectedPresetId = ref('__adhoc');
 const isSubmitting = ref(false);
@@ -207,6 +216,18 @@ const lastJobId = ref('');
 const errorMessage = ref('');
 const successMessage = ref('');
 const outputFilename = ref('');
+
+const availableConsumers = ref<string[]>([]);
+const selectedConsumers = ref<string[]>(['filesystem']);
+
+const toggleConsumer = (consumer: string): void => {
+  const idx = selectedConsumers.value.indexOf(consumer);
+  if (idx >= 0) {
+    selectedConsumers.value = selectedConsumers.value.filter((c) => c !== consumer);
+  } else {
+    selectedConsumers.value = [...selectedConsumers.value, consumer];
+  }
+};
 
 // ─── Live page display ─────────────────────────────────────────────
 interface LivePage {
@@ -225,7 +246,6 @@ const adhocSettings = reactive({
 // Capabilities for the currently selected discovered scanner
 const selectedCaps = ref<ScannerCapabilityDetails | null>(null);
 
-const profiles = computed(() => runtimeConfig.value?.profiles ?? []);
 const configuredScanners = computed(() => runtimeConfig.value?.scanners ?? []);
 const hasScanners = computed(() => configuredScanners.value.length > 0);
 
@@ -241,7 +261,7 @@ const showAdHocSettings = computed(() => {
 });
 
 const canSubmit = computed(() => {
-  return selectedProfileId.value && selectedScannerId.value;
+  return !!selectedScannerId.value;
 });
 
 // Dropdown options based on selected scanner capabilities
@@ -393,9 +413,10 @@ const submitJob = async (): Promise<void> => {
 
   try {
     const request: Record<string, unknown> = {
-      profileId: selectedProfileId.value,
       scannerId: selectedScannerId.value,
       presetId: selectedPresetId.value === '__adhoc' ? '' : selectedPresetId.value,
+      trigger: 'webui',
+      consumers: selectedConsumers.value.length ? selectedConsumers.value : undefined,
     };
 
     // Include output filename if provided
@@ -414,7 +435,7 @@ const submitJob = async (): Promise<void> => {
       };
     }
 
-    const job = await api.createJob(request as Parameters<typeof api.createJob>[0]);
+    const job = await api.createJob(request as unknown as Parameters<typeof api.createJob>[0]);
     lastJobId.value = job.id;
     // Don't reset isSubmitting here — SSE watcher will do it when job finishes
   } catch (error: unknown) {
@@ -432,7 +453,9 @@ const saveAsPreset = async (): Promise<void> => {
     const label = `${adhocSettings.mode} ${adhocSettings.resolutionDpi}dpi ${adhocSettings.source}`;
     await api.createPreset({
       label,
-      scannerId: isDiscoveredScanner.value ? selectedScannerId.value : undefined,
+      ...(isDiscoveredScanner.value && selectedScannerId.value
+        ? { scannerId: selectedScannerId.value }
+        : {}),
       source: adhocSettings.source,
       mode: adhocSettings.mode,
       resolutionDpi: adhocSettings.resolutionDpi,
@@ -448,18 +471,20 @@ const saveAsPreset = async (): Promise<void> => {
 
 onMounted(async () => {
   try {
-    const [config, scannersData, presets] = await Promise.all([
+    const [config, scannersData, presets, consumers] = await Promise.all([
       api.getRuntimeConfig(),
       api.getScanners(),
       api.getAllPresets(),
+      api.getAvailableConsumers(),
     ]);
 
     runtimeConfig.value = config;
     discoveredScanners.value = scannersData.discovered;
     allPresets.value = presets;
-
-    const firstProfile = config.profiles[0];
-    selectedProfileId.value = firstProfile?.id ?? '';
+    availableConsumers.value = consumers;
+    if (consumers.length) {
+      selectedConsumers.value = consumers.includes('filesystem') ? ['filesystem'] : [consumers[0]!];
+    }
 
     // Pick first configured scanner, or first discovered
     const firstConfigured = config.scanners[0];
@@ -566,6 +591,32 @@ select {
 .optional {
   color: var(--text-faint);
   font-size: 0.75rem;
+}
+
+.consumers-panel {
+  max-width: 400px;
+}
+
+.consumers-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 0.4rem;
+}
+
+.consumer-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+}
+
+.consumer-check {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  cursor: pointer;
 }
 
 .actions {

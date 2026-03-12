@@ -13,12 +13,15 @@ interface SseClient {
   response: Response;
 }
 
+export type BrokerEventCallback = (payload: unknown) => void;
+
 /**
  * Broadcasts server-side events to connected SSE clients.
  */
 export class SseBroker {
   private readonly clients = new Map<string, SseClient>();
   private readonly replayBuffer: SseEnvelope[] = [];
+  private readonly listeners = new Map<string, Set<BrokerEventCallback>>();
 
   public constructor(private readonly replayBufferSize: number) {}
 
@@ -30,6 +33,21 @@ export class SseBroker {
 
   public removeClient(clientId: string): void {
     this.clients.delete(clientId);
+  }
+
+  /** Register a programmatic listener for a specific event type. */
+  public on(type: string, callback: BrokerEventCallback): void {
+    let set = this.listeners.get(type);
+    if (!set) {
+      set = new Set();
+      this.listeners.set(type, set);
+    }
+    set.add(callback);
+  }
+
+  /** Remove a previously registered listener. */
+  public off(type: string, callback: BrokerEventCallback): void {
+    this.listeners.get(type)?.delete(callback);
   }
 
   public emit(type: string, payload: unknown): void {
@@ -49,6 +67,18 @@ export class SseBroker {
 
     for (const client of this.clients.values()) {
       client.response.write(serialized);
+    }
+
+    // Notify programmatic listeners
+    const callbacks = this.listeners.get(type);
+    if (callbacks) {
+      for (const cb of callbacks) {
+        try {
+          cb(event.payload);
+        } catch {
+          // Listener errors must not break the emit loop
+        }
+      }
     }
   }
 

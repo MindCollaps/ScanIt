@@ -8,6 +8,9 @@
     >
       <div class="preview-img-wrapper">
         <img :src="page.url" :alt="`Page ${idx + 1}`" loading="lazy" />
+        <div v-if="rotatingFile === page.filename" class="rotate-spinner-overlay">
+          <SpinnerIcon size="md" />
+        </div>
       </div>
       <span class="preview-label">{{ idx + 1 }}</span>
     </div>
@@ -21,11 +24,17 @@
         <button v-if="lightboxIdx > 0" class="lightbox-nav lightbox-prev" @click="lightboxIdx!--">
           &lsaquo;
         </button>
-        <img
-          :src="pages[lightboxIdx!]?.url"
-          :alt="`Page ${lightboxIdx! + 1}`"
-          class="lightbox-img"
-        />
+        <div class="lightbox-img-wrapper">
+          <img
+            :src="pages[lightboxIdx!]?.url"
+            :alt="`Page ${lightboxIdx! + 1}`"
+            class="lightbox-img"
+            :class="{ 'img-rotating': rotatingFile === pages[lightboxIdx!]?.filename }"
+          />
+          <div v-if="rotatingFile === pages[lightboxIdx!]?.filename" class="rotate-spinner-overlay lightbox-spinner">
+            <SpinnerIcon size="lg" />
+          </div>
+        </div>
         <button
           v-if="lightboxIdx! < pages.length - 1"
           class="lightbox-nav lightbox-next"
@@ -39,9 +48,12 @@
             v-if="rotatable"
             class="lightbox-rotate"
             title="Rotate 90°"
+            :disabled="rotatingFile !== null"
             @click="emit('rotate', lightboxIdx!)"
           >
-            &#8635; Rotate
+            <SpinnerIcon v-if="rotatingFile === pages[lightboxIdx!]?.filename" size="sm" />
+            <template v-else>&#8635;</template>
+            Rotate
           </button>
           <button
             v-if="deletable"
@@ -59,6 +71,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
+import SpinnerIcon from './SpinnerIcon.vue';
 
 export interface PreviewPage {
   url: string;
@@ -71,8 +84,9 @@ const props = withDefaults(
     showGallery?: boolean;
     deletable?: boolean;
     rotatable?: boolean;
+    rotatingFile?: string | null;
   }>(),
-  { showGallery: true, deletable: false, rotatable: false },
+  { showGallery: true, deletable: false, rotatable: false, rotatingFile: null },
 );
 
 const emit = defineEmits<{
@@ -260,9 +274,41 @@ onUnmounted(() => {
   white-space: nowrap;
   cursor: pointer;
 }
-.lightbox-rotate:hover {
+.lightbox-rotate:hover:not(:disabled) {
   border-color: var(--btn-primary-bg);
   color: var(--text-heading);
+}
+.lightbox-rotate:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.lightbox-img-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.img-rotating {
+  opacity: 0.4;
+  transition: opacity 0.2s;
+}
+
+.rotate-spinner-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  background: rgb(0 0 0 / 30%);
+  pointer-events: none;
+}
+
+.lightbox-spinner {
+  border-radius: 0.5rem;
+  background: rgb(0 0 0 / 50%);
 }
 
 .lightbox-delete {

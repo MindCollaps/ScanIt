@@ -11,6 +11,7 @@ import type { ScannerProvider } from '../scanner/provider.js';
 import type { JobService } from './services/jobService.js';
 import type { SseBroker } from './sse/broker.js';
 import type { SqliteStore } from '../store/sqlite/db.js';
+import type { AdapterRegistry } from '../integration/adapter.js';
 import { logger } from './logger.js';
 import { createHealthRouter } from './routes/health.js';
 import { createConfigRouter } from './routes/config.js';
@@ -25,6 +26,7 @@ export interface AppDependencies {
   jobService: JobService;
   sseBroker: SseBroker;
   store: SqliteStore;
+  adapterRegistry: AdapterRegistry;
 }
 
 /**
@@ -72,7 +74,7 @@ export const createServerApp = (dependencies: AppDependencies): Express => {
       dependencies.sseBroker,
     ),
   );
-  app.use(createJobRouter(dependencies.configRuntime, dependencies.jobService));
+  app.use(createJobRouter(dependencies.configRuntime, dependencies.jobService, dependencies.adapterRegistry));
   app.use(createEventsRouter(dependencies.sseBroker));
 
   // Serve built Vue client in production

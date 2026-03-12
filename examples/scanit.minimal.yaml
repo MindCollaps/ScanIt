@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# ScanIt — Minimal User Config
+# ScanIt — Minimal Config
 # Drop this into your config/ directory alongside 00-system.yaml.
 # System defaults (app, paths, logging, presets, processing, etc.)
 # are provided by 00-system.yaml; you only need to add your scanner.
@@ -25,16 +25,10 @@ scanners:
       resolutionDpi: 300
       format: "png"
 
-# Point the default correspondence at your scanner
-correspondences:
-  - id: "default"
-    defaultScannerId: "my_scanner"
-
 # A simple workflow for one-click scanning
 workflows:
   - id: "quick"
     label: "Quick Scan"
-    profileId: "default"
     scannerId: "my_scanner"
     presetId: "doc_300_color"
     destinationIds: ["archive"]

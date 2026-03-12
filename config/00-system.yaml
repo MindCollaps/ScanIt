@@ -41,31 +41,6 @@ resilience:
     retries: 3
     backoffMs: 2000
 
-profiles:
-  - id: "default"
-    label: "Default"
-    enabled: true
-    defaultPresetId: "doc_300_color"
-    naming:
-      template: "{date}_{time}_{user}_{custom_name}"
-      sanitize: true
-
-presets:
-  - id: "doc_300_color"
-    label: "Document 300dpi Color"
-    scan:
-      source: "Flatbed"
-      mode: "Color"
-      resolutionDpi: 300
-      brightness: 0
-      contrast: 0
-      pageSize: "A4"
-    output:
-      format: "pdf"
-      imageFormat: "png"
-      jpegQuality: 85
-      combinePages: true
-
 processing:
   pdf:
     engine: "img2pdf"

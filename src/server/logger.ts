@@ -12,7 +12,7 @@ if (isDev) {
   try {
     // pino-pretty is a devDependency – only available outside production
     const mod = await import('pino-pretty');
-    const pretty = typeof mod === 'function' ? mod : (mod as unknown as { default: typeof mod }).default;
+    const pretty = 'default' in mod ? (mod.default as typeof mod) : mod;
     devStream = pretty({
       colorize: true,
       translateTime: 'HH:MM:ss',

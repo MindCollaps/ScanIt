@@ -1,0 +1,42 @@
+# ──────────────────────────────────────────────────────────────
+# ScanIt — Home Assistant MQTT Integration Example
+# Drop this in config/ alongside 00-system.yaml.
+#
+# Exposes scan buttons as HA entities via MQTT Discovery.
+# Each button triggers a preset scan and publishes status
+# (idle → scanning → succeeded/failed → idle) back to HA.
+#
+# Requirements:
+#   - An MQTT broker (e.g. Mosquitto add-on in HA)
+#   - HA MQTT integration configured and connected to the same broker
+# ──────────────────────────────────────────────────────────────
+version: 1
+
+integrations:
+  homeassistant:
+    enabled: true
+    mqtt:
+      brokerUrl: "mqtt://localhost:1883"
+      username: "${MQTT_USER}"
+      password: "${MQTT_PASS}"
+      # clientId: "scanit"          # defaults to "scanit"
+      # topicPrefix: "scanit"       # defaults to "scanit"
+    discovery:
+      prefix: "homeassistant"       # HA discovery topic prefix
+      deviceName: "ScanIt"          # shown in HA device registry
+      deviceId: "scanit"            # unique device identifier
+    buttons:
+      # Each button becomes an HA button entity + status sensor.
+      # Only presetId is required; profileId and scannerId fall
+      # back to config defaults if omitted.
+      - id: "scan_noah"
+        label: "Scan Noah"
+        presetId: "doc_300_color"
+        # scannerId: "office_adf"   # optional — falls back to first enabled scanner
+
+      - id: "scan_quick_gray"
+        label: "Quick Grayscale Scan"
+        presetId: "doc_300_gray"
+        consumerOverride:            # optional — overrides preset consumers
+          - "filesystem"
+          - "paperless:main"

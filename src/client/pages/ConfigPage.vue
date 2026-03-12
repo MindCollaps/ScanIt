@@ -44,6 +44,7 @@
       :available-sources="presets.availableSources.value"
       :available-modes="presets.availableModes.value"
       :available-resolutions="presets.availableResolutions.value"
+      :available-consumers="availableConsumers"
       @update:preset-form="
         (field: string, value: unknown) => {
           (presets.presetForm as any)[field] = value;
@@ -66,6 +67,7 @@
 import { onMounted, ref } from 'vue';
 import { useScanners } from '../composables/useScanners.js';
 import { usePresets } from '../composables/usePresets.js';
+import { useApi } from '../composables/useApi.js';
 import ScannersTab from '../components/ScannersTab.vue';
 import PresetsTab from '../components/PresetsTab.vue';
 import StatusTab from '../components/StatusTab.vue';
@@ -85,11 +87,17 @@ const activeTab = ref<TabId>('scanners');
 
 const scanners = useScanners();
 const presets = usePresets(scanners.discoveredScanners, scanners.configuredScanners);
+const api = useApi();
+const availableConsumers = ref<string[]>([]);
 
 // ─── Init ────────────────────────────────────────────────────────────
 
 onMounted(async () => {
-  await Promise.all([scanners.loadScanners(), presets.loadPresets()]);
+  await Promise.all([
+    scanners.loadScanners(),
+    presets.loadPresets(),
+    api.getAvailableConsumers().then((c) => { availableConsumers.value = c; }),
+  ]);
 });
 </script>
 

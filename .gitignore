@@ -5,4 +5,3 @@ dist
 .DS_Store
 .env
 tsconfig.client.tsbuildinfo
-config/01-local.yaml

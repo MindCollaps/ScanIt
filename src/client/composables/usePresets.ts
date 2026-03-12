@@ -35,6 +35,7 @@ export const usePresets = (
     imageFormat: 'jpeg' as 'jpeg' | 'png' | 'tiff',
     jpegQuality: 85,
     combinePages: true,
+    consumers: [] as string[],
   });
 
   const presetForm = reactive(defaultPresetForm());
@@ -127,6 +128,7 @@ export const usePresets = (
       imageFormat: preset.imageFormat,
       jpegQuality: preset.jpegQuality,
       combinePages: preset.combinePages,
+      consumers: preset.consumers ?? [],
     });
   };
 

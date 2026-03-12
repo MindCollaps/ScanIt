@@ -1,5 +1,6 @@
 import type {
   ScanJob,
+  JobTrigger,
   DiscoveredScannerRecord,
   ScannerCapabilityDetails,
   UserPreset,
@@ -25,10 +26,11 @@ interface DiscoveryResponse {
 }
 
 interface CreateJobRequest {
-  profileId: string;
   scannerId: string;
   presetId: string;
   outputFilename?: string;
+  trigger?: JobTrigger;
+  consumers?: string[];
   overrides?: {
     device?: string;
     source?: string;
@@ -98,6 +100,9 @@ export const useApi = () => {
     // ─── Config ────────────────────────────────────────────────────
     getConfigStatus: async (): Promise<ConfigStatusResponse> => fetchJson('/api/config/status'),
     getRuntimeConfig: async (): Promise<AppConfig> => fetchJson('/api/config/runtime'),
+
+    // ─── Consumers ─────────────────────────────────────────────────
+    getAvailableConsumers: async (): Promise<string[]> => fetchJson('/api/consumers'),
 
     // ─── Scanners ──────────────────────────────────────────────────
     getScanners: async (): Promise<ScannersResponse> => fetchJson('/api/scanners'),
@@ -198,6 +203,12 @@ export const useApi = () => {
       const response = await fetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
     },
+
+    deliverJob: async (jobId: string, consumer: string): Promise<{ success: boolean; error?: string }> =>
+      fetchJson(`/api/jobs/${jobId}/deliver`, {
+        method: 'POST',
+        body: JSON.stringify({ consumer }),
+      }),
 
     batchDeleteJobs: async (params: {
       ids?: string[];

@@ -5,19 +5,24 @@ import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { AppConfig } from '../../shared/types/config.js';
-import type { ScanJob, JobState, ScanParams } from '../../shared/types/domain.js';
+import type { ScanJob, JobState, JobTrigger, ScanParams } from '../../shared/types/domain.js';
 import type { ScannerProvider } from '../../scanner/provider.js';
 import type { SqliteStore } from '../../store/sqlite/db.js';
 import type { SseBroker } from '../sse/broker.js';
+import type { AdapterRegistry } from '../../integration/adapter.js';
+import { logger } from '../logger.js';
 
 const execFileAsync = promisify(execFile);
 
 export interface CreateJobInput {
-  profileId: string;
   scannerId: string;
   presetId: string;
   /** Custom output filename (without extension) */
   outputFilename?: string;
+  /** What triggered this job */
+  trigger?: JobTrigger;
+  /** Which consumers should receive the scan output */
+  consumers?: string[];
   /** Override scan settings (used for ad-hoc scanning from discovered scanners) */
   overrides?: {
     device?: string;
@@ -35,14 +40,10 @@ export class JobService {
     private readonly store: SqliteStore,
     private readonly scannerProvider: ScannerProvider,
     private readonly broker: SseBroker,
+    private readonly adapterRegistry: AdapterRegistry,
   ) {}
 
   public async createAndRunJob(input: CreateJobInput, config: AppConfig): Promise<ScanJob> {
-    const profile = config.profiles.find((item) => item.id === input.profileId);
-    if (!profile) {
-      throw new Error('Invalid profile reference in create job request');
-    }
-
     // Resolve scanner device - either from config or discovered scanners
     let device: string | undefined;
     let scannerId = input.scannerId;
@@ -90,13 +91,23 @@ export class JobService {
 
     const jobId = randomUUID();
 
+    // Resolve consumers: explicit → preset → default
+    const consumers: string[] =
+      input.consumers ??
+      configPreset?.output.consumers ??
+      userPreset?.consumers ??
+      ['filesystem'];
+
     this.store.createJob({
       id: jobId,
-      profileId: input.profileId,
       scannerId,
       presetId: input.presetId || 'adhoc',
       state: 'PENDING',
+      trigger: input.trigger,
     });
+
+    // Persist resolved consumers
+    this.store.updateJobConsumers(jobId, consumers);
 
     // Persist resolved scan params for future appends
     const scanParams: ScanParams = { device, source, mode, resolutionDpi };
@@ -109,7 +120,7 @@ export class JobService {
 
     this.broker.emit('job_created', { jobId, input });
 
-    void this.runJob(jobId, profile.id, device, source, mode, resolutionDpi, config);
+    void this.runJob(jobId, device, source, mode, resolutionDpi, config);
 
     const created = this.store.getJob(jobId);
     if (!created) {
@@ -121,7 +132,6 @@ export class JobService {
 
   private async runJob(
     jobId: string,
-    profileId: string,
     device: string,
     source: string,
     mode: string,
@@ -134,7 +144,7 @@ export class JobService {
 
     this.broker.emit('job_running', { jobId });
 
-    const outputDir = join(config.paths.outputDir, profileId, jobId);
+    const outputDir = join(config.paths.outputDir, jobId);
 
     try {
       await mkdir(outputDir, { recursive: true });
@@ -166,6 +176,9 @@ export class JobService {
       });
 
       this.broker.emit('job_succeeded', { jobId, pagePaths: result.pagePaths });
+
+      // Dispatch to consumers after successful scan
+      await this.dispatchToConsumers(jobId, config);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown scan failure';
       this.store.updateJobState(jobId, 'FAILED', {
@@ -180,6 +193,48 @@ export class JobService {
 
   public getJob(jobId: string): ScanJob | undefined {
     return this.store.getJob(jobId);
+  }
+
+  /**
+   * Manually dispatch a completed job to a single consumer.
+   * Re-runs delivery regardless of whether it was delivered before.
+   */
+  public async deliverToConsumer(
+    jobId: string,
+    consumerType: string,
+    config: AppConfig,
+  ): Promise<{ success: boolean; error?: string }> {
+    const job = this.store.getJob(jobId);
+    if (!job) throw new Error(`Job '${jobId}' not found`);
+    if (job.state !== 'SUCCEEDED') throw new Error('Can only deliver completed jobs');
+
+    const adapter = this.adapterRegistry.get(consumerType);
+    if (!adapter) throw new Error(`No adapter registered for '${consumerType}'`);
+
+    const pages = await this.getJobPages(jobId, config);
+
+    try {
+      const result = await adapter.deliver({ job, pages, config });
+      if (!result.success) {
+        logger.warn({ jobId, consumerType, error: result.error }, 'Manual delivery failed');
+      }
+      this.store.addJobEvent(jobId, 'delivery_completed', {
+        consumer: consumerType,
+        success: result.success,
+        manual: true,
+        ...(result.error !== undefined ? { error: result.error } : {}),
+      });
+      return result;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Delivery failed';
+      logger.error({ jobId, consumerType, err: error }, 'Manual consumer delivery failed');
+      this.store.addJobEvent(jobId, 'delivery_failed', {
+        consumer: consumerType,
+        error: message,
+        manual: true,
+      });
+      return { success: false, error: message };
+    }
   }
 
   public listJobs(limit = 50): ScanJob[] {
@@ -207,7 +262,7 @@ export class JobService {
   public getJobOutputDir(jobId: string, config: AppConfig): string | undefined {
     const job = this.store.getJob(jobId);
     if (!job) return undefined;
-    return join(config.paths.outputDir, job.profileId, jobId);
+    return join(config.paths.outputDir, jobId);
   }
 
   /**
@@ -302,6 +357,9 @@ export class JobService {
 
       this.store.addJobEvent(jobId, 'appended', { newPages: newPageFiles, batchStart });
       this.broker.emit('job_succeeded', { jobId, append: true, newPages: newPageFiles });
+
+      // Re-dispatch to consumers after append
+      await this.dispatchToConsumers(jobId, config);
 
       return { newPages: newPageFiles };
     } catch (error: unknown) {
@@ -453,7 +511,7 @@ export class JobService {
     const jobs = this.store.listJobs(10000).filter((j) => j.state === state);
     const count = this.store.deleteJobsByState(state);
     for (const job of jobs) {
-      const dir = join(config.paths.outputDir, job.profileId, job.id);
+      const dir = join(config.paths.outputDir, job.id);
       if (existsSync(dir)) {
         await rm(dir, { recursive: true, force: true });
       }
@@ -468,7 +526,7 @@ export class JobService {
     const jobs = ids.map((id) => this.store.getJob(id)).filter(Boolean) as ScanJob[];
     const count = this.store.deleteJobsByIds(ids);
     for (const job of jobs) {
-      const dir = join(config.paths.outputDir, job.profileId, job.id);
+      const dir = join(config.paths.outputDir, job.id);
       if (existsSync(dir)) {
         await rm(dir, { recursive: true, force: true });
       }
@@ -482,6 +540,48 @@ export class JobService {
       if (existsSync(pdfPath)) unlinkSync(pdfPath);
     } catch {
       // ignore
+    }
+  }
+
+  /**
+   * Dispatch completed scan output to all registered consumers for this job.
+   */
+  private async dispatchToConsumers(jobId: string, config: AppConfig): Promise<void> {
+    const job = this.store.getJob(jobId);
+    if (!job) return;
+
+    const consumers = job.consumers ?? ['filesystem'];
+    const pages = await this.getJobPages(jobId, config);
+
+    for (const consumerType of consumers) {
+      const adapter = this.adapterRegistry.get(consumerType);
+      if (!adapter) {
+        logger.warn({ jobId, consumerType }, 'No adapter registered for consumer type');
+        this.store.addJobEvent(jobId, 'delivery_skipped', {
+          consumer: consumerType,
+          reason: 'no_adapter',
+        });
+        continue;
+      }
+
+      try {
+        const result = await adapter.deliver({ job, pages, config });
+        if (!result.success) {
+          logger.warn({ jobId, consumerType, error: result.error }, 'Consumer delivery failed');
+        }
+        this.store.addJobEvent(jobId, 'delivery_completed', {
+          consumer: consumerType,
+          success: result.success,
+          ...(result.error !== undefined ? { error: result.error } : {}),
+        });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Delivery failed';
+        logger.error({ jobId, consumerType, err: error }, 'Consumer delivery failed');
+        this.store.addJobEvent(jobId, 'delivery_failed', {
+          consumer: consumerType,
+          error: message,
+        });
+      }
     }
   }
 }

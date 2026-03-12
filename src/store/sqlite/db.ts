@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import type {
   JobState,
+  JobTrigger,
   ScanJob,
   ScanParams,
   DiscoveredScannerRecord,
@@ -12,10 +13,10 @@ import type {
 
 export interface JobRecordInput {
   id: string;
-  profileId: string;
   scannerId: string;
   presetId: string;
   state: JobState;
+  trigger?: JobTrigger | undefined;
 }
 
 /**
@@ -101,6 +102,10 @@ export class SqliteStore {
     addColumnIfMissing('jobs', 'page_order', 'TEXT');
     addColumnIfMissing('jobs', 'scan_params_json', 'TEXT');
     addColumnIfMissing('jobs', 'output_filename', 'TEXT');
+    addColumnIfMissing('jobs', 'trigger', 'TEXT');
+    addColumnIfMissing('jobs', 'consumers_json', 'TEXT');
+
+    addColumnIfMissing('user_presets', 'consumers_json', 'TEXT');
 
     // Indexes for common query patterns
     this.db.exec(`
@@ -112,11 +117,25 @@ export class SqliteStore {
   public createJob(input: JobRecordInput): void {
     const now = new Date().toISOString();
     const statement = this.db.prepare(`
-      INSERT INTO jobs (id, profile_id, scanner_id, preset_id, state, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO jobs (id, profile_id, scanner_id, preset_id, state, created_at, trigger)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
-    statement.run(input.id, input.profileId, input.scannerId, input.presetId, input.state, now);
+    statement.run(
+      input.id,
+      '',
+      input.scannerId,
+      input.presetId,
+      input.state,
+      now,
+      input.trigger ?? null,
+    );
+  }
+
+  public updateJobConsumers(jobId: string, consumers: string[]): void {
+    this.db
+      .prepare('UPDATE jobs SET consumers_json = ? WHERE id = ?')
+      .run(JSON.stringify(consumers), jobId);
   }
 
   public updateJobState(
@@ -161,7 +180,7 @@ export class SqliteStore {
 
   public getJob(jobId: string): ScanJob | undefined {
     const statement = this.db.prepare(`
-      SELECT id, profile_id, scanner_id, preset_id, state, created_at, started_at, finished_at, error_code, error_message, page_order, scan_params_json, output_filename
+      SELECT id, profile_id, scanner_id, preset_id, state, created_at, started_at, finished_at, error_code, error_message, page_order, scan_params_json, output_filename, trigger, consumers_json
       FROM jobs
       WHERE id = ?
     `);
@@ -180,6 +199,8 @@ export class SqliteStore {
       page_order: string | null;
       scan_params_json: string | null;
       output_filename: string | null;
+      trigger: string | null;
+      consumers_json: string | null;
     } | null;
 
     if (!row) {
@@ -191,7 +212,7 @@ export class SqliteStore {
 
   public listJobs(limit: number): ScanJob[] {
     const statement = this.db.prepare(`
-      SELECT id, profile_id, scanner_id, preset_id, state, created_at, started_at, finished_at, error_code, error_message, page_order, scan_params_json, output_filename
+      SELECT id, profile_id, scanner_id, preset_id, state, created_at, started_at, finished_at, error_code, error_message, page_order, scan_params_json, output_filename, trigger, consumers_json
       FROM jobs
       ORDER BY created_at DESC
       LIMIT ?
@@ -211,6 +232,8 @@ export class SqliteStore {
       page_order: string | null;
       scan_params_json: string | null;
       output_filename: string | null;
+      trigger: string | null;
+      consumers_json: string | null;
     }>;
 
     return rows.map((row) => this.mapJobRow(row));
@@ -277,10 +300,11 @@ export class SqliteStore {
     page_order: string | null;
     scan_params_json: string | null;
     output_filename: string | null;
+    trigger: string | null;
+    consumers_json: string | null;
   }): ScanJob {
     const job: ScanJob = {
       id: row.id,
-      profileId: row.profile_id,
       scannerId: row.scanner_id,
       presetId: row.preset_id,
       state: row.state,
@@ -306,6 +330,14 @@ export class SqliteStore {
       }
     }
     if (row.output_filename !== null) job.outputFilename = row.output_filename;
+    if (row.trigger !== null) job.trigger = row.trigger as JobTrigger;
+    if (row.consumers_json !== null) {
+      try {
+        job.consumers = JSON.parse(row.consumers_json);
+      } catch {
+        /* corrupt data — ignore */
+      }
+    }
 
     return job;
   }
@@ -456,11 +488,11 @@ export class SqliteStore {
       INSERT INTO user_presets (
         id, label, scanner_id, source, mode, resolution_dpi, brightness, contrast,
         page_size, output_format, image_format, jpeg_quality, combine_pages,
-        created_at, updated_at
+        consumers_json, created_at, updated_at
       ) VALUES (
         $id, $label, $scannerId, $source, $mode, $resolutionDpi, $brightness, $contrast,
         $pageSize, $outputFormat, $imageFormat, $jpegQuality, $combinePages,
-        $createdAt, $updatedAt
+        $consumersJson, $createdAt, $updatedAt
       )
     `);
 
@@ -478,6 +510,7 @@ export class SqliteStore {
       $imageFormat: preset.imageFormat,
       $jpegQuality: preset.jpegQuality,
       $combinePages: preset.combinePages ? 1 : 0,
+      $consumersJson: preset.consumers ? JSON.stringify(preset.consumers) : null,
       $createdAt: preset.createdAt,
       $updatedAt: preset.updatedAt,
     });
@@ -489,7 +522,8 @@ export class SqliteStore {
         label = $label, scanner_id = $scannerId, source = $source, mode = $mode,
         resolution_dpi = $resolutionDpi, brightness = $brightness, contrast = $contrast,
         page_size = $pageSize, output_format = $outputFormat, image_format = $imageFormat,
-        jpeg_quality = $jpegQuality, combine_pages = $combinePages, updated_at = $updatedAt
+        jpeg_quality = $jpegQuality, combine_pages = $combinePages, consumers_json = $consumersJson,
+        updated_at = $updatedAt
       WHERE id = $id
     `);
 
@@ -507,6 +541,7 @@ export class SqliteStore {
       $imageFormat: preset.imageFormat,
       $jpegQuality: preset.jpegQuality,
       $combinePages: preset.combinePages ? 1 : 0,
+      $consumersJson: preset.consumers ? JSON.stringify(preset.consumers) : null,
       $updatedAt: preset.updatedAt,
     });
   }
@@ -550,6 +585,14 @@ export class SqliteStore {
     };
     const scannerId = row.scanner_id as string | null;
     if (scannerId) preset.scannerId = scannerId;
+    const consumersJson = row.consumers_json as string | null;
+    if (consumersJson) {
+      try {
+        preset.consumers = JSON.parse(consumersJson);
+      } catch {
+        /* corrupt data — ignore */
+      }
+    }
     return preset;
   }
 }

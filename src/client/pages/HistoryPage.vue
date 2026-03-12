@@ -3,30 +3,34 @@
     <div class="page-header">
       <h2>Scan History</h2>
       <div class="header-actions">
-        <button
+        <BaseButton
           v-if="failedCount > 0"
-          class="btn-danger-sm"
+          variant="danger-sm"
           :disabled="isDeleting"
+          :loading="isDeleting"
           @click="deleteAllFailed"
         >
-          {{ isDeleting ? 'Deleting...' : `Delete ${failedCount} Failed` }}
-        </button>
-        <button
+          Delete {{ failedCount }} Failed
+        </BaseButton>
+        <BaseButton
           v-if="selectedIds.size > 0"
-          class="btn-danger-sm"
+          variant="danger-sm"
           :disabled="isDeleting"
+          :loading="isDeleting"
           @click="deleteSelected"
         >
           Delete {{ selectedIds.size }} Selected
-        </button>
-        <button class="btn-secondary" @click="load">Refresh</button>
+        </BaseButton>
+        <BaseButton @click="load">Refresh</BaseButton>
       </div>
     </div>
 
-    <p v-if="statusMsg" :class="statusMsg.startsWith('Error') ? 'error' : 'success'">
-      {{ statusMsg }}
-    </p>
-    <p v-if="!jobs.length && !loading" class="muted">No scan jobs yet.</p>
+    <AlertMessage
+      v-if="statusMsg"
+      :message="statusMsg"
+      :variant="statusMsg.startsWith('Error') ? 'error' : 'success'"
+    />
+    <AlertMessage v-if="!jobs.length && !loading" message="No scan jobs yet." variant="muted" />
 
     <table v-if="jobs.length">
       <thead>
@@ -36,7 +40,6 @@
           </th>
           <th>Status</th>
           <th>Filename</th>
-          <th>Correspondence</th>
           <th>Scanner</th>
           <th>Preset</th>
           <th>Created</th>
@@ -59,10 +62,9 @@
             />
           </td>
           <td>
-            <span :class="['state-badge', stateClass(item.state)]">{{ item.state }}</span>
+            <StatusBadge :state="item.state" :label="item.state" />
           </td>
           <td class="truncate">{{ item.outputFilename || '—' }}</td>
-          <td>{{ item.profileId }}</td>
           <td class="truncate">{{ item.scannerId }}</td>
           <td>{{ formatPreset(item.presetId) }}</td>
           <td>{{ formatDate(item.createdAt) }}</td>
@@ -81,6 +83,9 @@ import { computed, onMounted, ref, reactive } from 'vue';
 import type { ScanJob } from '../../shared/types/domain.js';
 import { useApi } from '../composables/useApi.js';
 import { formatDate } from '../utils/formatters.js';
+import BaseButton from '../components/BaseButton.vue';
+import StatusBadge from '../components/StatusBadge.vue';
+import AlertMessage from '../components/AlertMessage.vue';
 
 const api = useApi();
 const jobs = ref<ScanJob[]>([]);
@@ -248,36 +253,6 @@ td {
   white-space: nowrap;
 }
 
-.state-badge {
-  display: inline-block;
-  padding: 0.15em 0.5em;
-  border-radius: 0.25rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.state-success {
-  background: var(--state-success-bg);
-  color: var(--state-success-fg);
-}
-.state-error {
-  background: var(--state-error-bg);
-  color: var(--state-error-fg);
-}
-.state-running {
-  background: var(--state-running-bg);
-  color: var(--state-running-fg);
-}
-.state-pending {
-  background: var(--state-pending-bg);
-  color: var(--state-pending-fg);
-}
-.state-appending {
-  background: var(--state-appending-bg);
-  color: var(--state-appending-fg);
-}
-
 .view-link {
   color: var(--accent);
   font-size: 0.8rem;
@@ -287,51 +262,5 @@ td {
 
 .view-link:hover {
   text-decoration: underline;
-}
-
-.muted {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-.error {
-  color: var(--color-error);
-  font-size: 0.85rem;
-}
-.success {
-  color: var(--color-success);
-  font-size: 0.85rem;
-}
-
-.btn-secondary {
-  padding: 0.45rem 0.85rem;
-  border: 1px solid var(--border-default);
-  border-radius: 0.4rem;
-  background: transparent;
-  color: var(--btn-secondary-text);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.btn-secondary:hover {
-  border-color: var(--btn-secondary-border-hover);
-  color: var(--btn-secondary-text-hover);
-}
-
-.btn-danger-sm {
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--btn-danger-border);
-  border-radius: 0.4rem;
-  background: transparent;
-  color: var(--color-error);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.btn-danger-sm:hover {
-  background: var(--btn-danger-bg-hover);
-}
-.btn-danger-sm:disabled {
-  cursor: default;
-  opacity: 0.5;
 }
 </style>

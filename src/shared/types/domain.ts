@@ -4,6 +4,8 @@
 
 export type JobState = 'PENDING' | 'RUNNING' | 'APPENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
 
+export type JobTrigger = 'webui' | 'api' | 'hassio';
+
 export interface ProblemDetails {
   type: string;
   title: string;
@@ -23,7 +25,6 @@ export interface ScanParams {
 
 export interface ScanJob {
   id: string;
-  profileId: string;
   scannerId: string;
   presetId: string;
   state: JobState;
@@ -35,6 +36,8 @@ export interface ScanJob {
   pageOrder?: string[];
   scanParams?: ScanParams;
   outputFilename?: string;
+  trigger?: JobTrigger;
+  consumers?: string[];
 }
 
 export interface ScanArtifact {
@@ -175,6 +178,7 @@ export interface UserPreset {
   imageFormat: 'jpeg' | 'png' | 'tiff';
   jpegQuality: number;
   combinePages: boolean;
+  consumers?: string[];
   createdAt: string;
   updatedAt: string;
 }

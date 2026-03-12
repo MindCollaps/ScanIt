@@ -1,6 +1,6 @@
 # ScanIt
 
-Config-driven web scanning platform. Wraps SANE scanners behind a modern Vue 3 UI with real-time job tracking, multi-user profiles, and pluggable integrations (Paperless-ngx and more).
+Config-driven web scanning platform. Wraps SANE scanners behind a modern Vue 3 UI with real-time job tracking, configurable consumers, and pluggable integrations (Paperless-ngx, Home Assistant, and more).
 
 ## Quick Install
 
@@ -21,13 +21,13 @@ This clones the repo to `~/scanit`, builds the Docker image, and starts the cont
 
 - **SANE scanner integration** — network and local scanners via `scanimage`
 - **Config-driven** — YAML config directory with deep-merge, env interpolation, and hot-reload
-- **Multi-user profiles** — separate naming templates, presets, and integration tokens per user
 - **Workflows** — one-click scan-to-destination pipelines
 - **Real-time updates** — SSE-powered live job progress with live page thumbnails in the browser
-- **User presets** — save and manage custom scan presets per scanner
+- **Custom presets** — save and manage custom scan presets per scanner
 - **Page management** — reorder, interleave (duplex), append pages; lightbox zoom preview
 - **Theming** — centralised CSS custom-property colour system for easy re-theming
-- **Paperless-ngx integration** — profile-scoped upload with per-user tokens
+- **Paperless-ngx integration** — multiple named instances, each with its own API token
+- **Home Assistant integration** — MQTT Discovery with button entities for one-tap scanning
 - **Docker-native** — single container, `network_mode: host` for mDNS scanner discovery
 
 ## Architecture
@@ -49,7 +49,7 @@ ScanIt uses a config directory (`/config` inside Docker, `./config` on disk). Fi
 | File | Purpose |
 |---|---|
 | `00-system.yaml` | System defaults (shipped with ScanIt, do not edit) |
-| `scanit.yaml` | Your configuration — scanners, profiles, workflows |
+| `scanit.yaml` | Your configuration — scanners, presets, workflows |
 
 The app boots with zero scanners configured and shows a setup prompt in the UI. Add your scanner to `scanit.yaml`:
 
@@ -74,13 +74,9 @@ scanners:
       mode: "Color"
       resolutionDpi: 300
       format: "png"
-
-profiles:
-  - id: "default"
-    defaultScannerId: "my_scanner"
 ```
 
-Changes are hot-reloaded automatically. See [examples/](examples/) for multi-user and Paperless setups.
+Changes are hot-reloaded automatically. See [examples/](examples/) for Paperless and Home Assistant setups.
 
 Full schema reference: [docs/CONFIG_SCHEMA.md](docs/CONFIG_SCHEMA.md)
 
@@ -169,11 +165,11 @@ The dev setup uses `docker-compose.dev.yml` which bind-mounts the source tree an
 | `GET /api/scanners/discovered` | List previously discovered scanners |
 | `GET /api/scanners/discovered/:id/capabilities` | Get capabilities for a discovered scanner |
 | `GET /api/scanners/diagnostics` | SANE diagnostics report |
-| `GET /api/presets` | All presets (config + user) |
-| `GET /api/presets/user` | User-created presets |
-| `POST /api/presets` | Create a user preset |
-| `PUT /api/presets/:id` | Update a user preset |
-| `DELETE /api/presets/:id` | Delete a user preset |
+| `GET /api/presets` | All presets (config + custom) |
+| `GET /api/presets/user` | Custom presets |
+| `POST /api/presets` | Create a custom preset |
+| `PUT /api/presets/:id` | Update a custom preset |
+| `DELETE /api/presets/:id` | Delete a custom preset |
 | `POST /api/jobs` | Start a scan job |
 | `GET /api/jobs/:id` | Job details |
 | `GET /api/jobs/:id/pages` | List scanned page images |

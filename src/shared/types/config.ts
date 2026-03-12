@@ -43,7 +43,6 @@ export interface AppConfig {
     };
   };
   scanners: ScannerDefinition[];
-  profiles: ProfileDefinition[];
   presets: PresetDefinition[];
   workflows: WorkflowDefinition[];
   processing: {
@@ -74,12 +73,8 @@ export interface AppConfig {
   };
   destinations: DestinationDefinition[];
   integrations: {
-    paperless?: {
-      baseUrl: string;
-      timeoutMs: number;
-      verifyTls: boolean;
-      defaultDocumentType: string;
-    };
+    paperless?: PaperlessInstance[];
+    homeassistant?: HomeAssistantConfig;
   };
   features: {
     preview: boolean;
@@ -112,26 +107,6 @@ export interface ScannerDefinition {
   };
 }
 
-export interface ProfileDefinition {
-  id: string;
-  label: string;
-  enabled: boolean;
-  defaultScannerId?: string;
-  defaultPresetId?: string;
-  naming: {
-    template: string;
-    sanitize: boolean;
-  };
-  integrations?: {
-    paperless?: {
-      enabled: boolean;
-      tokenEnv: string;
-      defaultTags: string[];
-      correspondent?: string;
-    };
-  };
-}
-
 export interface PresetDefinition {
   id: string;
   label: string;
@@ -148,13 +123,13 @@ export interface PresetDefinition {
     imageFormat: 'jpeg' | 'png' | 'tiff';
     jpegQuality: number;
     combinePages: boolean;
+    consumers?: string[];
   };
 }
 
 export interface WorkflowDefinition {
   id: string;
   label: string;
-  profileId: string;
   scannerId: string;
   presetId: string;
   destinationIds: string[];
@@ -169,7 +144,44 @@ export interface DestinationDefinition {
   path?: string;
   namingTemplate?: string;
   adapter?: 'paperless';
-  profileScoped?: boolean;
+}
+
+export interface PaperlessInstance {
+  id: string;
+  label: string;
+  baseUrl: string;
+  /** Direct API token value */
+  token?: string;
+  /** Name of the environment variable that holds the API token */
+  tokenEnv?: string;
+  timeoutMs: number;
+  verifyTls: boolean;
+  defaultDocumentType?: string;
+}
+
+export interface HassButton {
+  id: string;
+  label: string;
+  presetId: string;
+  scannerId?: string;
+  consumerOverride?: string[];
+}
+
+export interface HomeAssistantConfig {
+  enabled: boolean;
+  mqtt: {
+    brokerUrl: string;
+    username: string;
+    password: string;
+    clientId?: string;
+    topicPrefix?: string;
+  };
+  discovery: {
+    prefix: string;
+    deviceName: string;
+    deviceId: string;
+  };
+  buttons: HassButton[];
 }
 
 export interface ConfigSnapshot {
@@ -189,6 +201,7 @@ export interface ConfigStatus {
   sourcePath: string;
   lastError?: {
     message: string;
+    issues: string[];
     occurredAt: string;
   };
 }
