@@ -123,6 +123,8 @@
   --state-error-fg-hover: var(--c-rose-500);
   --state-running-bg: var(--c-blue-900);
   --state-running-fg: var(--c-blue-400);
+  --state-hold-bg: var(--c-violet-950);
+  --state-hold-fg: var(--c-violet-400);
   --state-appending-bg: var(--c-indigo-900);
   --state-appending-fg: var(--c-indigo-400);
   --state-pending-bg: var(--c-amber-950);

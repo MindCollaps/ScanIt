@@ -11,7 +11,7 @@ import type { ScannerProvider } from '../scanner/provider.js';
 import type { JobService } from './services/jobService.js';
 import type { SseBroker } from './sse/broker.js';
 import type { SqliteStore } from '../store/sqlite/db.js';
-import type { AdapterRegistry } from '../integration/adapter.js';
+import type { AdapterRegistry } from '../integration-core/adapter.js';
 import { logger } from './logger.js';
 import { createHealthRouter } from './routes/health.js';
 import { createConfigRouter } from './routes/config.js';

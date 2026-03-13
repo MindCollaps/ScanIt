@@ -1,9 +1,12 @@
 # ─────────────────────────────────────────────────────
-# ScanIt – Paperless-ngx multi-instance example
-# ─────────────────────────────────────────────────────
-# Each entry under integrations.paperless is a named
-# Paperless-ngx instance. The consumer type becomes
-# "paperless:<id>" (e.g. "paperless:mrx").
+# ScanIt — Paperless-ngx Integration Example
+# Copy this to config/ alongside 00-system.yaml to enable Paperless.
+#
+# See README.md in this directory for full documentation.
+#
+# Each entry under integrations.paperless is a named instance.
+# The consumer type becomes "paperless:<id>" (e.g. "paperless:mrx").
+# Reference it in destinations or preset consumers.
 #
 # Tokens are read from environment variables to avoid
 # storing secrets in config files.
@@ -15,7 +18,7 @@ integrations:
       label: "MRX's Paperless"
       baseUrl: "https://paperless-mrx.example.com"
       tokenEnv: "PAPERLESS_MRX_TOKEN"
-      timeoutMs: 30000
+      timeoutMs: 120000
       verifyTls: true
       # defaultDocumentType: "Inbox"   # omit to let Paperless auto-assign
 
@@ -23,6 +26,6 @@ integrations:
       label: "Shared Archive"
       baseUrl: "https://paperless.example.com"
       tokenEnv: "PAPERLESS_SHARED_TOKEN"
-      timeoutMs: 60000
+      timeoutMs: 120000
       verifyTls: true
       # defaultDocumentType: "Archive"  # omit to let Paperless auto-assign

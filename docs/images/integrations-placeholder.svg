@@ -1,0 +1,20 @@
+<svg width="1200" height="675" viewBox="0 0 1200 675" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Integrations Placeholder">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1f2937"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <rect x="50" y="50" width="1100" height="575" rx="20" fill="#0b1220" stroke="#334155"/>
+  <circle cx="250" cy="338" r="110" fill="#2563eb"/>
+  <circle cx="600" cy="338" r="110" fill="#22c55e"/>
+  <circle cx="950" cy="338" r="110" fill="#f59e0b"/>
+  <line x1="360" y1="338" x2="490" y2="338" stroke="#64748b" stroke-width="8"/>
+  <line x1="710" y1="338" x2="840" y2="338" stroke="#64748b" stroke-width="8"/>
+  <text x="196" y="346" fill="#ffffff" font-size="26" font-family="Arial, sans-serif" font-weight="700">ScanIt</text>
+  <text x="541" y="346" fill="#ffffff" font-size="24" font-family="Arial, sans-serif" font-weight="700">Paperless</text>
+  <text x="894" y="346" fill="#ffffff" font-size="24" font-family="Arial, sans-serif" font-weight="700">HA</text>
+  <text x="88" y="126" fill="#e2e8f0" font-size="34" font-family="Arial, sans-serif" font-weight="700">Integrations Placeholder</text>
+  <text x="88" y="168" fill="#94a3b8" font-size="20" font-family="Arial, sans-serif">Show destination routing, API upload result, and automation buttons</text>
+</svg>

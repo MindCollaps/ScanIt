@@ -3,9 +3,9 @@ import type {
   DeliveryContext,
   DeliveryResult,
   AdapterFactory,
-  AdapterDependencies,
-} from './adapter.js';
-import type { AppConfig } from '../shared/types/config.js';
+  IntegrationHost,
+} from '../../integration-core/adapter.js';
+import type { AppConfig } from '../../shared/types/config.js';
 
 /**
  * Default filesystem adapter — files already reside in the job output directory,
@@ -23,9 +23,9 @@ export class FilesystemAdapter implements DestinationAdapter {
 /**
  * Factory that always produces a single filesystem adapter.
  */
-export const filesystemAdapterFactory: AdapterFactory = {
+export const adapterFactory: AdapterFactory = {
   name: 'filesystem',
-  create(_config: AppConfig, _deps: AdapterDependencies): DestinationAdapter[] {
+  create(_config: AppConfig, _host: IntegrationHost): DestinationAdapter[] {
     return [new FilesystemAdapter()];
   },
 };

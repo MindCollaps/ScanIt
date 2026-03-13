@@ -5,7 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { ConfigRuntime } from '../../config/runtime.js';
 import type { JobService } from '../services/jobService.js';
-import type { AdapterRegistry } from '../../integration/adapter.js';
+import type { AdapterRegistry } from '../../integration-core/adapter.js';
 import type { JobState, JobTrigger } from '../../shared/types/domain.js';
 
 const execFileAsync = promisify(execFile);
@@ -16,6 +16,7 @@ interface CreateJobBody {
   outputFilename?: string;
   trigger?: JobTrigger;
   consumers?: string[];
+  deferDelivery?: boolean;
   overrides?: {
     device?: string;
     source?: string;
@@ -50,6 +51,10 @@ const isCreateJobBody = (value: unknown): value is CreateJobBody => {
     (!Array.isArray(record.consumers) ||
       !record.consumers.every((c: unknown) => typeof c === 'string'))
   ) {
+    return false;
+  }
+
+  if (record.deferDelivery !== undefined && typeof record.deferDelivery !== 'boolean') {
     return false;
   }
 
@@ -400,6 +405,17 @@ export const createJobRouter = (
     }
   });
 
+  /** Finalize a held job and dispatch its consumers. */
+  router.post('/api/jobs/:jobId/finalize', async (request, response, next) => {
+    try {
+      const snapshot = runtime.getSnapshot();
+      await jobService.finalizeHeldJob(request.params.jobId, snapshot.config);
+      response.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   /** Delete a single job and its files. */
   router.delete('/api/jobs/:jobId', async (request, response, next) => {
     try {
@@ -418,7 +434,15 @@ export const createJobRouter = (
       const snapshot = runtime.getSnapshot();
 
       if (typeof body.state === 'string') {
-        const validStates: JobState[] = ['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELED'];
+        const validStates: JobState[] = [
+          'PENDING',
+          'RUNNING',
+          'APPENDING',
+          'HOLD',
+          'SUCCEEDED',
+          'FAILED',
+          'CANCELED',
+        ];
         if (!validStates.includes(body.state as JobState)) {
           response.status(400).json({ code: 'BAD_REQUEST', message: 'Invalid state filter' });
           return;

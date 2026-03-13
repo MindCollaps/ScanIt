@@ -84,6 +84,12 @@ export class SqliteStore {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS runtime_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `);
 
     // ─── Migrations ────────────────────────────────────────────
@@ -369,6 +375,30 @@ export class SqliteStore {
       })(),
       createdAt: row.created_at,
     }));
+  }
+
+  // ─── Runtime State (key/value) ───────────────────────────────────
+
+  public setRuntimeValue(key: string, value: string): void {
+    const statement = this.db.prepare(`
+      INSERT INTO runtime_state (key, value, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET
+        value = excluded.value,
+        updated_at = excluded.updated_at
+    `);
+    statement.run(key, value, new Date().toISOString());
+  }
+
+  public getRuntimeValue(key: string): string | undefined {
+    const row = this.db
+      .prepare('SELECT value FROM runtime_state WHERE key = ?')
+      .get(key) as { value: string } | null;
+    return row?.value;
+  }
+
+  public deleteRuntimeValue(key: string): void {
+    this.db.prepare('DELETE FROM runtime_state WHERE key = ?').run(key);
   }
 
   // ─── Discovered Scanners ────────────────────────────────────────────

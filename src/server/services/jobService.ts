@@ -9,7 +9,7 @@ import type { ScanJob, JobState, JobTrigger, ScanParams } from '../../shared/typ
 import type { ScannerProvider } from '../../scanner/provider.js';
 import type { SqliteStore } from '../../store/sqlite/db.js';
 import type { SseBroker } from '../sse/broker.js';
-import type { AdapterRegistry } from '../../integration/adapter.js';
+import type { AdapterRegistry } from '../../integration-core/adapter.js';
 import { logger } from '../logger.js';
 
 const execFileAsync = promisify(execFile);
@@ -23,6 +23,8 @@ export interface CreateJobInput {
   trigger?: JobTrigger;
   /** Which consumers should receive the scan output */
   consumers?: string[];
+  /** If true, scan completion enters HOLD and consumer dispatch is deferred */
+  deferDelivery?: boolean;
   /** Override scan settings (used for ad-hoc scanning from discovered scanners) */
   overrides?: {
     device?: string;
@@ -120,7 +122,9 @@ export class JobService {
 
     this.broker.emit('job_created', { jobId, input });
 
-    void this.runJob(jobId, device, source, mode, resolutionDpi, config);
+    void this.runJob(jobId, device, source, mode, resolutionDpi, config, {
+      deferDelivery: input.deferDelivery === true,
+    });
 
     const created = this.store.getJob(jobId);
     if (!created) {
@@ -137,6 +141,9 @@ export class JobService {
     mode: string,
     resolutionDpi: number,
     config: AppConfig,
+    options?: {
+      deferDelivery?: boolean;
+    },
   ): Promise<void> {
     this.store.updateJobState(jobId, 'RUNNING', {
       startedAt: new Date().toISOString(),
@@ -171,14 +178,22 @@ export class JobService {
       );
 
       this.store.addJobEvent(jobId, 'completed', { pagePaths: result.pagePaths });
-      this.store.updateJobState(jobId, 'SUCCEEDED', {
-        finishedAt: new Date().toISOString(),
-      });
+      if (options?.deferDelivery) {
+        this.store.updateJobState(jobId, 'HOLD', {
+          finishedAt: new Date().toISOString(),
+        });
+        this.store.addJobEvent(jobId, 'hold', { reason: 'deferred_delivery' });
+        this.broker.emit('job_hold', { jobId, pagePaths: result.pagePaths });
+      } else {
+        this.store.updateJobState(jobId, 'SUCCEEDED', {
+          finishedAt: new Date().toISOString(),
+        });
 
-      this.broker.emit('job_succeeded', { jobId, pagePaths: result.pagePaths });
+        this.broker.emit('job_succeeded', { jobId, pagePaths: result.pagePaths });
 
-      // Dispatch to consumers after successful scan
-      await this.dispatchToConsumers(jobId, config);
+        // Dispatch to consumers after successful scan
+        await this.dispatchToConsumers(jobId, config);
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown scan failure';
       this.store.updateJobState(jobId, 'FAILED', {
@@ -235,6 +250,22 @@ export class JobService {
       });
       return { success: false, error: message };
     }
+  }
+
+  /**
+   * Finalize a held job and dispatch to its configured consumers.
+   */
+  public async finalizeHeldJob(jobId: string, config: AppConfig): Promise<void> {
+    const job = this.store.getJob(jobId);
+    if (!job) throw new Error(`Job '${jobId}' not found`);
+    if (job.state !== 'HOLD') throw new Error('Can only finalize held jobs');
+
+    this.store.updateJobState(jobId, 'SUCCEEDED', {
+      finishedAt: new Date().toISOString(),
+    });
+    this.store.addJobEvent(jobId, 'finalized', { source: 'manual' });
+    this.broker.emit('job_succeeded', { jobId, finalized: true });
+    await this.dispatchToConsumers(jobId, config);
   }
 
   public listJobs(limit = 50): ScanJob[] {
@@ -308,7 +339,9 @@ export class JobService {
   public async appendToJob(jobId: string, config: AppConfig): Promise<{ newPages: string[] }> {
     const job = this.store.getJob(jobId);
     if (!job) throw new Error(`Job '${jobId}' not found`);
-    if (job.state !== 'SUCCEEDED') throw new Error('Can only append to completed jobs');
+    if (job.state !== 'SUCCEEDED' && job.state !== 'HOLD') {
+      throw new Error('Can only append to completed or held jobs');
+    }
     if (!job.scanParams) throw new Error('Job has no stored scan params — cannot append');
 
     const outputDir = this.getJobOutputDir(jobId, config)!;
@@ -352,19 +385,25 @@ export class JobService {
       // Invalidate cached PDF
       this.invalidateCachedPdf(outputDir);
 
-      // Transition back to SUCCEEDED
-      this.store.updateJobState(jobId, 'SUCCEEDED');
-
       this.store.addJobEvent(jobId, 'appended', { newPages: newPageFiles, batchStart });
-      this.broker.emit('job_succeeded', { jobId, append: true, newPages: newPageFiles });
 
-      // Re-dispatch to consumers after append
-      await this.dispatchToConsumers(jobId, config);
+      // Preserve HOLD mode if append started from HOLD, otherwise keep the default SUCCEEDED flow.
+      if (job.state === 'HOLD') {
+        this.store.updateJobState(jobId, 'HOLD');
+        this.store.addJobEvent(jobId, 'hold', { reason: 'deferred_delivery_append' });
+        this.broker.emit('job_hold', { jobId, append: true, newPages: newPageFiles });
+      } else {
+        this.store.updateJobState(jobId, 'SUCCEEDED');
+        this.broker.emit('job_succeeded', { jobId, append: true, newPages: newPageFiles });
+
+        // Re-dispatch to consumers after append
+        await this.dispatchToConsumers(jobId, config);
+      }
 
       return { newPages: newPageFiles };
     } catch (error: unknown) {
-      // Revert to SUCCEEDED so the user can retry
-      this.store.updateJobState(jobId, 'SUCCEEDED');
+      // Revert to the previous stable terminal state so the user can retry
+      this.store.updateJobState(jobId, job.state);
       const message = error instanceof Error ? error.message : 'Append scan failed';
       this.broker.emit('job_failed', { jobId, append: true, message });
       throw error;
@@ -553,6 +592,9 @@ export class JobService {
     const consumers = job.consumers ?? ['filesystem'];
     const pages = await this.getJobPages(jobId, config);
 
+    const maxAttempts = 1 + config.resilience.integration.retries;
+    const backoffMs = config.resilience.integration.backoffMs;
+
     for (const consumerType of consumers) {
       const adapter = this.adapterRegistry.get(consumerType);
       if (!adapter) {
@@ -564,22 +606,43 @@ export class JobService {
         continue;
       }
 
-      try {
-        const result = await adapter.deliver({ job, pages, config });
-        if (!result.success) {
-          logger.warn({ jobId, consumerType, error: result.error }, 'Consumer delivery failed');
+      let lastResult: { success: boolean; error?: string } = { success: false, error: 'Not attempted' };
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        if (attempt > 1) {
+          await new Promise<void>((resolve) => setTimeout(resolve, backoffMs * (attempt - 1)));
         }
+
+        try {
+          lastResult = await adapter.deliver({ job, pages, config });
+        } catch (error: unknown) {
+          lastResult = { success: false, error: error instanceof Error ? error.message : 'Delivery failed' };
+        }
+
+        if (lastResult.success) break;
+
+        if (attempt < maxAttempts) {
+          logger.warn(
+            { jobId, consumerType, attempt, maxAttempts, error: lastResult.error },
+            'Consumer delivery attempt failed, retrying',
+          );
+        }
+      }
+
+      if (lastResult.success) {
         this.store.addJobEvent(jobId, 'delivery_completed', {
           consumer: consumerType,
-          success: result.success,
-          ...(result.error !== undefined ? { error: result.error } : {}),
+          success: true,
         });
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Delivery failed';
-        logger.error({ jobId, consumerType, err: error }, 'Consumer delivery failed');
+      } else {
+        logger.error(
+          { jobId, consumerType, attempts: maxAttempts, error: lastResult.error },
+          'Consumer delivery failed',
+        );
         this.store.addJobEvent(jobId, 'delivery_failed', {
           consumer: consumerType,
-          error: message,
+          error: lastResult.error,
+          attempts: maxAttempts,
         });
       }
     }

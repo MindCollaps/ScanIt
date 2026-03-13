@@ -304,6 +304,8 @@ const stateClass = computed(() => {
       return 'state-error';
     case 'RUNNING':
       return 'state-running';
+    case 'HOLD':
+      return 'state-hold';
     case 'APPENDING':
       return 'state-appending';
     case 'PENDING':
@@ -403,6 +405,7 @@ const loadJob = async (): Promise<void> => {
     if (
       job.value?.state === 'SUCCEEDED' ||
       job.value?.state === 'FAILED' ||
+      job.value?.state === 'HOLD' ||
       job.value?.state === 'APPENDING'
     ) {
       pages.value = (await api.getJobPages(jobId)).map((p) => ({
@@ -412,7 +415,12 @@ const loadJob = async (): Promise<void> => {
       events.value = await api.getJobEvents(jobId);
       if (pages.value.length >= 2) splitIndex.value = Math.ceil(pages.value.length / 2);
       // Stop polling only when fully terminal
-      if ((job.value?.state === 'SUCCEEDED' || job.value?.state === 'FAILED') && pollTimer) {
+      if (
+        (job.value?.state === 'SUCCEEDED' ||
+          job.value?.state === 'FAILED' ||
+          job.value?.state === 'HOLD') &&
+        pollTimer
+      ) {
         clearInterval(pollTimer);
         pollTimer = undefined;
       }

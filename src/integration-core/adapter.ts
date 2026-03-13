@@ -1,4 +1,4 @@
-import type { ScanJob } from '../shared/types/domain.js';
+import type { ScanJob, JobTrigger, UserPreset } from '../shared/types/domain.js';
 import type { AppConfig } from '../shared/types/config.js';
 import { logger } from '../server/logger.js';
 
@@ -17,6 +17,58 @@ export interface DeliveryContext {
 export interface DeliveryResult {
   success: boolean;
   error?: string;
+}
+
+export interface IntegrationJobCreateInput {
+  scannerId: string;
+  presetId: string;
+  outputFilename?: string;
+  trigger?: JobTrigger;
+  consumers?: string[];
+  deferDelivery?: boolean;
+  overrides?: {
+    device?: string;
+    source?: string;
+    mode?: string;
+    resolutionDpi?: number;
+  };
+}
+
+export interface IntegrationLogger {
+  debug(message: string, context?: Record<string, unknown>): void;
+  info(message: string, context?: Record<string, unknown>): void;
+  warn(message: string, context?: Record<string, unknown>): void;
+  error(message: string, context?: Record<string, unknown>): void;
+}
+
+export type IntegrationEventCallback = (payload: unknown) => void;
+
+export interface IntegrationHost {
+  readonly logger: IntegrationLogger;
+  readonly config: {
+    getCurrent(): AppConfig;
+  };
+  readonly events: {
+    on(type: string, callback: IntegrationEventCallback): () => void;
+  };
+  readonly jobs: {
+    create(input: IntegrationJobCreateInput): Promise<ScanJob>;
+    append(jobId: string): Promise<{ newPages: string[] }>;
+    finalize(jobId: string): Promise<void>;
+    discard(jobId: string): Promise<void>;
+    interleave(jobId: string, splitIndex: number, reverseSecond: boolean): Promise<string[]>;
+    get(jobId: string): ScanJob | undefined;
+    getPages(jobId: string): Promise<DeliveryPage[]>;
+    addEvent(jobId: string, eventType: string, payload: object): void;
+  };
+  readonly state: {
+    get(key: string): string | undefined;
+    set(key: string, value: string): void;
+    delete(key: string): void;
+  };
+  readonly presets: {
+    getUserPreset(id: string): UserPreset | undefined;
+  };
 }
 
 /**
@@ -45,13 +97,6 @@ export interface DestinationAdapter {
 }
 
 /**
- * Shared dependencies that adapter factories may need.
- */
-export interface AdapterDependencies {
-  [key: string]: unknown;
-}
-
-/**
  * A factory that reads its relevant config section and produces adapter instances.
  * Each integration provides one factory. The registry calls it on startup and reload.
  */
@@ -63,7 +108,7 @@ export interface AdapterFactory {
    * Create adapter instances from the current config.
    * May return zero instances if the integration is not configured.
    */
-  create(config: AppConfig, deps: AdapterDependencies): DestinationAdapter[];
+  create(config: AppConfig, host: IntegrationHost): DestinationAdapter[];
 }
 
 /**
@@ -101,9 +146,9 @@ export class AdapterRegistry {
    * Build all adapters from registered factories and initialize them.
    * Called once during server bootstrap.
    */
-  public async initializeAll(config: AppConfig, deps: AdapterDependencies): Promise<void> {
+  public async initializeAll(config: AppConfig, host: IntegrationHost): Promise<void> {
     for (const factory of this.factories) {
-      for (const adapter of factory.create(config, deps)) {
+      for (const adapter of factory.create(config, host)) {
         this.adapters.set(adapter.type, adapter);
         this.factoryTypes.add(adapter.type);
       }
@@ -128,7 +173,7 @@ export class AdapterRegistry {
    * Rebuild factory-produced adapters with the new config.
    * Shuts down old factory instances, creates new ones, and initializes them.
    */
-  public async reloadConfig(config: AppConfig, deps: AdapterDependencies): Promise<void> {
+  public async reloadConfig(config: AppConfig, host: IntegrationHost): Promise<void> {
     // Shutdown old factory-produced adapters
     for (const type of this.factoryTypes) {
       const adapter = this.adapters.get(type);
@@ -146,7 +191,7 @@ export class AdapterRegistry {
 
     // Rebuild from factories with new config
     for (const factory of this.factories) {
-      for (const adapter of factory.create(config, deps)) {
+      for (const adapter of factory.create(config, host)) {
         this.adapters.set(adapter.type, adapter);
         this.factoryTypes.add(adapter.type);
       }

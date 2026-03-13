@@ -1,10 +1,14 @@
 # ──────────────────────────────────────────────────────────────
 # ScanIt — Home Assistant MQTT Integration Example
-# Drop this in config/ alongside 00-system.yaml.
+# Copy this to config/ alongside 00-system.yaml to enable HA.
 #
-# Exposes scan buttons as HA entities via MQTT Discovery.
-# Each button triggers a preset scan and publishes status
-# (idle → scanning → succeeded/failed → idle) back to HA.
+# See README.md in this directory for full documentation on
+# MQTT topics, scan modes, and HA entities.
+#
+# Modes cycle as: default -> double_sided -> endless -> default
+# - default: scan dispatches to consumers immediately on completion
+# - double_sided/endless: scan creates/extends a held job (no dispatch yet)
+#   Finalize by pressing the Finalize Held Scan button (or mode-cycle button).
 #
 # Requirements:
 #   - An MQTT broker (e.g. Mosquitto add-on in HA)
@@ -26,7 +30,8 @@ integrations:
       deviceName: "ScanIt"          # shown in HA device registry
       deviceId: "scanit"            # unique device identifier
     buttons:
-      # Each button becomes an HA button entity + status sensor.
+      # Each entry becomes an HA scan trigger button.
+      # Status/messages are exposed globally (not per-button) and include current job info.
       # Only presetId is required; profileId and scannerId fall
       # back to config defaults if omitted.
       - id: "scan_mrx"

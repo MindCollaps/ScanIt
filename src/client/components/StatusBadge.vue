@@ -17,6 +17,7 @@ const stateMap: Record<JobState, string> = {
   SUCCEEDED: 'state-success',
   FAILED: 'state-error',
   RUNNING: 'state-running',
+  HOLD: 'state-hold',
   PENDING: 'state-pending',
   APPENDING: 'state-appending',
   CANCELED: 'state-pending',
@@ -49,6 +50,11 @@ const variantClass = computed(() => stateMap[props.state] ?? 'state-pending');
 .state-running {
   background: var(--state-running-bg);
   color: var(--state-running-fg);
+}
+
+.state-hold {
+  background: var(--state-hold-bg);
+  color: var(--state-hold-fg);
 }
 
 .state-pending {

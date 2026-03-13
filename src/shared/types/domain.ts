@@ -2,7 +2,14 @@
  * Shared domain types used across server and client.
  */
 
-export type JobState = 'PENDING' | 'RUNNING' | 'APPENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
+export type JobState =
+  | 'PENDING'
+  | 'RUNNING'
+  | 'APPENDING'
+  | 'HOLD'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'CANCELED';
 
 export type JobTrigger = 'webui' | 'api' | 'hassio';
 

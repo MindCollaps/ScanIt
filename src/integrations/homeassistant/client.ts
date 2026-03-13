@@ -1,6 +1,6 @@
 import { connectAsync, type MqttClient } from 'mqtt';
 import type { HomeAssistantConfig } from '../../shared/types/config.js';
-import { logger } from '../../server/logger.js';
+import type { IntegrationLogger } from '../../integration-core/adapter.js';
 
 export interface MqttClientOptions {
   brokerUrl: string;
@@ -17,7 +17,10 @@ export class ScanItMqttClient {
   private client: MqttClient | undefined;
   private readonly options: MqttClientOptions;
 
-  public constructor(config: HomeAssistantConfig) {
+  public constructor(
+    config: HomeAssistantConfig,
+    private readonly logger: IntegrationLogger,
+  ) {
     this.options = {
       brokerUrl: config.mqtt.brokerUrl,
       username: config.mqtt.username,
@@ -66,12 +69,15 @@ export class ScanItMqttClient {
 
     // Publish online status
     await this.client.publishAsync(statusTopic, 'online', { retain: true, qos: 1 });
-    logger.info({ broker: this.options.brokerUrl, clientId: this.options.clientId }, 'MQTT connected');
+    this.logger.info('MQTT connected', {
+      broker: this.options.brokerUrl,
+      clientId: this.options.clientId,
+    });
   }
 
   public async publish(topic: string, payload: string, retain = false): Promise<void> {
     if (!this.client?.connected) {
-      logger.warn({ topic }, 'MQTT publish skipped – not connected');
+      this.logger.warn('MQTT publish skipped – not connected', { topic });
       return;
     }
     await this.client.publishAsync(topic, payload, { retain, qos: 1 });
@@ -90,7 +96,36 @@ export class ScanItMqttClient {
       }
     });
     await this.client.subscribeAsync(topic, { qos: 1 });
-    logger.debug({ topic }, 'MQTT subscribed');
+    this.logger.debug('MQTT subscribed', { topic });
+  }
+
+  /**
+   * Collect retained topics matching a pattern (single-level '+' wildcards supported).
+   * Useful for reconciling stale Home Assistant discovery entities.
+   */
+  public async collectRetainedTopics(topicPattern: string, timeoutMs = 700): Promise<string[]> {
+    if (!this.client) {
+      throw new Error('MQTT client not connected');
+    }
+
+    const topics = new Set<string>();
+    const handler = (receivedTopic: string, _payload: Buffer, packet: { retain?: boolean }) => {
+      if (packet?.retain !== true) return;
+      if (mqttTopicMatch(topicPattern, receivedTopic)) {
+        topics.add(receivedTopic);
+      }
+    };
+
+    this.client.on('message', handler);
+    try {
+      await this.client.subscribeAsync(topicPattern, { qos: 1 });
+      await new Promise((resolve) => setTimeout(resolve, timeoutMs));
+      await this.client.unsubscribeAsync(topicPattern);
+    } finally {
+      this.client.off('message', handler);
+    }
+
+    return [...topics];
   }
 
   public async disconnect(): Promise<void> {
@@ -103,7 +138,7 @@ export class ScanItMqttClient {
     }
     await this.client.endAsync();
     this.client = undefined;
-    logger.info('MQTT disconnected');
+    this.logger.info('MQTT disconnected');
   }
 }
 

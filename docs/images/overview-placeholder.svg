@@ -1,0 +1,25 @@
+<svg width="1200" height="675" viewBox="0 0 1200 675" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ScanIt Overview Placeholder">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1d4ed8"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <rect x="36" y="36" width="1128" height="603" rx="18" fill="#0b1220" stroke="#334155"/>
+  <rect x="72" y="88" width="240" height="500" rx="14" fill="#111827" stroke="#374151"/>
+  <rect x="340" y="88" width="780" height="140" rx="14" fill="url(#card)"/>
+  <rect x="340" y="252" width="372" height="336" rx="14" fill="#111827" stroke="#334155"/>
+  <rect x="748" y="252" width="372" height="160" rx="14" fill="#111827" stroke="#334155"/>
+  <rect x="748" y="428" width="372" height="160" rx="14" fill="#111827" stroke="#334155"/>
+  <text x="86" y="128" fill="#93c5fd" font-size="26" font-family="Arial, sans-serif" font-weight="700">ScanIt</text>
+  <text x="356" y="154" fill="#e2e8f0" font-size="34" font-family="Arial, sans-serif" font-weight="700">Overview Screenshot Placeholder</text>
+  <text x="356" y="194" fill="#cbd5e1" font-size="20" font-family="Arial, sans-serif">Replace with best full-dashboard shot</text>
+  <text x="360" y="300" fill="#94a3b8" font-size="20" font-family="Arial, sans-serif">Scan panel</text>
+  <text x="768" y="300" fill="#94a3b8" font-size="20" font-family="Arial, sans-serif">Recent jobs</text>
+  <text x="768" y="476" fill="#94a3b8" font-size="20" font-family="Arial, sans-serif">Live events</text>
+</svg>

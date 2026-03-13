@@ -40,3 +40,31 @@ version: 1
 #     destinationIds: ["archive"]
 #     askForCustomName: true
 #     previewBeforeScan: false
+integrations:
+  homeassistant:
+    enabled: true
+    mqtt:
+      brokerUrl: "mqtt://10.0.50.10:1883"
+      username: "${MQTT_USER}"
+      password: "${MQTT_PASS}"
+    discovery:
+      prefix: "homeassistant"       # HA discovery topic prefix
+      deviceName: "ScanIt"          # shown in HA device registry
+      deviceId: "scanit"            # unique device identifier
+    buttons:
+      - id: "scan_noah_feed"
+        label: "Scan Noah feed"
+        presetId: "user_f5a00514"
+  paperless:
+    - id: noah
+      label: "Noah's Paperless"
+      baseUrl: "https://paper.home"
+      token: "${PAPERLESS_TOKEN_NOAH}"
+      timeoutMs: 120000
+      verifyTls: false
+    - id: nana
+      label: "Nana's Paperless"
+      baseUrl: "https://paper.home"
+      token: "${PAPERLESS_TOKEN_NANA}"
+      timeoutMs: 120000
+      verifyTls: false

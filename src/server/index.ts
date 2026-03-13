@@ -4,14 +4,13 @@ import { ConfigRuntime } from '../config/runtime.js';
 import { watchConfigPath } from '../config/watcher.js';
 import { SaneScannerProvider } from '../scanner/sane/provider.js';
 import { SqliteStore } from '../store/sqlite/db.js';
+import { AdapterRegistry } from '../integration-core/adapter.js';
+import { loadAdapterFactories } from '../integration-core/loadFactories.js';
 import { createServerApp } from './app.js';
+import { createIntegrationHost } from './integrationHost.js';
 import { logger } from './logger.js';
 import { SseBroker } from './sse/broker.js';
 import { JobService } from './services/jobService.js';
-import { AdapterRegistry } from '../integration/adapter.js';
-import { filesystemAdapterFactory } from '../integration/filesystem.js';
-import { paperlessAdapterFactory } from '../integration/paperless.js';
-import { homeAssistantAdapterFactory } from '../integration/homeassistant/service.js';
 
 const defaultConfigPath = resolve(process.cwd(), 'config');
 
@@ -31,14 +30,14 @@ const bootstrap = async (): Promise<void> => {
   const scannerProvider = new SaneScannerProvider(snapshot.config.resilience.scanner.timeoutMs);
 
   const adapterRegistry = new AdapterRegistry();
-  adapterRegistry.registerFactory(filesystemAdapterFactory);
-  adapterRegistry.registerFactory(paperlessAdapterFactory);
-  adapterRegistry.registerFactory(homeAssistantAdapterFactory);
+  for (const factory of await loadAdapterFactories()) {
+    adapterRegistry.registerFactory(factory);
+  }
 
   const jobService = new JobService(store, scannerProvider, sseBroker, adapterRegistry);
 
-  const adapterDeps = { jobService, sseBroker, configRuntime: runtime, store };
-  await adapterRegistry.initializeAll(snapshot.config, adapterDeps);
+  const integrationHost = createIntegrationHost(runtime, sseBroker, jobService, store);
+  await adapterRegistry.initializeAll(snapshot.config, integrationHost);
 
   const app = createServerApp({
     configRuntime: runtime,
@@ -58,7 +57,7 @@ const bootstrap = async (): Promise<void> => {
           hash: result.snapshot.hash,
           loadedAt: result.snapshot.loadedAt,
         });
-        await adapterRegistry.reloadConfig(result.snapshot.config, adapterDeps);
+        await adapterRegistry.reloadConfig(result.snapshot.config, integrationHost);
       }
 
       if (result.error) {

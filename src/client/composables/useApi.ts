@@ -31,6 +31,7 @@ interface CreateJobRequest {
   outputFilename?: string;
   trigger?: JobTrigger;
   consumers?: string[];
+  deferDelivery?: boolean;
   overrides?: {
     device?: string;
     source?: string;
@@ -208,6 +209,11 @@ export const useApi = () => {
       fetchJson(`/api/jobs/${jobId}/deliver`, {
         method: 'POST',
         body: JSON.stringify({ consumer }),
+      }),
+
+    finalizeJob: async (jobId: string): Promise<{ ok: boolean }> =>
+      fetchJson(`/api/jobs/${jobId}/finalize`, {
+        method: 'POST',
       }),
 
     batchDeleteJobs: async (params: {

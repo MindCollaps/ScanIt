@@ -135,6 +135,7 @@ const formatDuration = (job: ScanJob): string => {
   if (!job.startedAt || !job.finishedAt) {
     if (job.state === 'RUNNING') return 'In progress';
     if (job.state === 'PENDING') return 'Queued';
+    if (job.state === 'HOLD') return 'Waiting finalize';
     return '—';
   }
   const ms = new Date(job.finishedAt).getTime() - new Date(job.startedAt).getTime();
