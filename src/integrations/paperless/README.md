@@ -7,6 +7,7 @@ Uploads completed scans as PDF documents to one or more [Paperless-ngx](https://
 - A running Paperless-ngx instance reachable from the ScanIt host
 - An API token for the target Paperless-ngx user
 - `img2pdf` or ImageMagick `convert` available in the ScanIt container (used to build the PDF from scanned images)
+- `qpdf` available in the ScanIt container (used for post-build PDF optimization)
 
 See [example config](./scanit.paperless.yaml) for a minimal working configuration.
 
@@ -75,12 +76,12 @@ output:
 
 ## Delivery Behaviour
 
-1. After a successful scan, ScanIt builds a single PDF from all scanned page images using `img2pdf` (falls back to ImageMagick `convert` if unavailable).
+1. After a successful scan, ScanIt uses the shared server PDF builder to create a single PDF from all scanned page images (`img2pdf`, with ImageMagick `convert` fallback) and then applies optional post-build optimization.
 2. The PDF is uploaded to `/api/documents/post_document/` using the Paperless-ngx REST API.
 3. If `job.outputFilename` is set, it is used as the document title in Paperless.
 4. Failed uploads are retried according to `resilience.integration.retries` and `resilience.integration.backoffMs` from the system config (defaults: 3 retries, 2 s backoff with linear back-off scaling).
 
-The generated PDF is cached in the job output directory — repeated deliveries to different Paperless instances within the same job reuse the same file without re-running `img2pdf`.
+The generated PDF is cached in the job output directory — repeated deliveries to different Paperless instances within the same job reuse the same file without rebuilding it.
 
 ---
 

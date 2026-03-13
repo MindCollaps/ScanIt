@@ -69,6 +69,14 @@ export interface IntegrationHost {
   readonly presets: {
     getUserPreset(id: string): UserPreset | undefined;
   };
+  readonly artifacts: {
+    ensurePdfFromPages(
+      pages: DeliveryPage[],
+      options?: {
+        optimize?: boolean;
+      },
+    ): Promise<string>;
+  };
 }
 
 /**

@@ -1,8 +1,4 @@
-import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { promisify } from 'node:util';
 import type {
   DestinationAdapter,
   DeliveryContext,
@@ -12,8 +8,6 @@ import type {
   IntegrationLogger,
 } from '../../integration-core/adapter.js';
 import type { AppConfig, PaperlessInstance } from '../../shared/types/config.js';
-
-const execFileAsync = promisify(execFile);
 
 /**
  * Paperless-ngx consumer adapter.
@@ -27,36 +21,9 @@ export class PaperlessAdapter implements DestinationAdapter {
   public constructor(
     private readonly instance: PaperlessInstance,
     private readonly logger: IntegrationLogger,
+    private readonly ensurePdfFromPages: IntegrationHost['artifacts']['ensurePdfFromPages'],
   ) {
     this.type = `paperless:${instance.id}`;
-  }
-
-  private async ensurePdf(context: DeliveryContext): Promise<string> {
-    const firstPage = context.pages[0];
-    if (!firstPage) {
-      throw new Error('No scanned pages found for PDF upload');
-    }
-
-    const outputDir = dirname(firstPage.path);
-    const pdfPath = join(outputDir, 'output.pdf');
-    if (existsSync(pdfPath)) {
-      return pdfPath;
-    }
-
-    const imagePaths = context.pages.map((page) => page.path);
-    try {
-      await execFileAsync('img2pdf', [...imagePaths, '-o', pdfPath], { timeout: 60000 });
-      return pdfPath;
-    } catch {
-      try {
-        await execFileAsync('convert', [...imagePaths, pdfPath], { timeout: 60000 });
-        return pdfPath;
-      } catch {
-        throw new Error(
-          'Unable to build PDF for Paperless upload (img2pdf/convert unavailable or failed)',
-        );
-      }
-    }
   }
 
   public async deliver(context: DeliveryContext): Promise<DeliveryResult> {
@@ -72,7 +39,9 @@ export class PaperlessAdapter implements DestinationAdapter {
 
     const uploadUrl = `${instance.baseUrl.replace(/\/+$/, '')}/api/documents/post_document/`;
     try {
-      const pdfPath = await this.ensurePdf(context);
+      const pdfPath = await this.ensurePdfFromPages(context.pages, {
+        optimize: context.config.processing.pdf.optimize,
+      });
       const fileBuffer = await readFile(pdfPath);
       const baseName = (context.job.outputFilename?.trim() || `scan_${context.job.id.slice(0, 8)}`)
         .replace(/[^a-zA-Z0-9_\-. ]/g, '_');
@@ -141,7 +110,7 @@ export const adapterFactory: AdapterFactory = {
   name: 'paperless',
   create(config: AppConfig, host: IntegrationHost): DestinationAdapter[] {
     return (config.integrations.paperless ?? []).map(
-      (instance) => new PaperlessAdapter(instance, host.logger),
+      (instance) => new PaperlessAdapter(instance, host.logger, host.artifacts.ensurePdfFromPages),
     );
   },
 };

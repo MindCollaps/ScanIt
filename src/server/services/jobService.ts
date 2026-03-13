@@ -1,5 +1,5 @@
-import { mkdir, readdir, stat, rm } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { mkdir, readdir, stat, rm, rename } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { existsSync, unlinkSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -331,6 +331,98 @@ export class JobService {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Ensure a combined PDF exists for the provided page images.
+   * Uses img2pdf first and falls back to ImageMagick convert.
+   */
+  public async ensurePdfFromPages(
+    pages: Array<{ filename: string; path: string; bytes: number }>,
+    options?: {
+      optimize?: boolean;
+    },
+  ): Promise<string> {
+    const firstPage = pages[0];
+    if (!firstPage) {
+      throw new Error('No scanned pages found');
+    }
+
+    const outputDir = dirname(firstPage.path);
+    const pdfPath = join(outputDir, 'output.pdf');
+    let createdNow = false;
+    if (!existsSync(pdfPath)) {
+      createdNow = true;
+      const imagePaths = pages.map((page) => page.path);
+      try {
+        await execFileAsync('img2pdf', [...imagePaths, '-o', pdfPath], { timeout: 60000 });
+      } catch {
+        try {
+          await execFileAsync('convert', [...imagePaths, pdfPath], { timeout: 60000 });
+        } catch {
+          throw new Error('Neither img2pdf nor convert (ImageMagick) is available to generate PDF');
+        }
+      }
+    }
+
+    const shouldOptimize = options?.optimize ?? true;
+    if (shouldOptimize && createdNow) {
+      await this.compressPdfIfSmaller(pdfPath);
+    }
+
+    return pdfPath;
+  }
+
+  private async compressPdfIfSmaller(pdfPath: string): Promise<void> {
+    const optimizedPath = `${pdfPath}.optimized`;
+    try {
+      await this.runPdfCompressionTool(pdfPath, optimizedPath);
+
+      const [originalStat, optimizedStat] = await Promise.all([
+        stat(pdfPath),
+        stat(optimizedPath),
+      ]);
+
+      // Keep the optimized file only when it actually reduces output size.
+      if (optimizedStat.size < originalStat.size) {
+        await rename(optimizedPath, pdfPath);
+      }
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.warn({ pdfPath, error: msg }, 'PDF optimization skipped');
+    } finally {
+      if (existsSync(optimizedPath)) {
+        await rm(optimizedPath, { force: true });
+      }
+    }
+  }
+
+  private async runPdfCompressionTool(pdfPath: string, optimizedPath: string): Promise<void> {
+    try {
+      await execFileAsync(
+        'qpdf',
+        ['--stream-data=compress', '--recompress-flate', '--object-streams=generate', pdfPath, optimizedPath],
+        { timeout: 60000 },
+      );
+      return;
+    } catch {
+      // Fall through to Ghostscript for lossy size reduction.
+    }
+
+    await execFileAsync(
+      'gs',
+      [
+        '-sDEVICE=pdfwrite',
+        '-dCompatibilityLevel=1.6',
+        '-dPDFSETTINGS=/ebook',
+        '-dNOPAUSE',
+        '-dQUIET',
+        '-dBATCH',
+        `-sOutputFile=${optimizedPath}`,
+        pdfPath,
+      ],
+      { timeout: 120000 },
+    );
   }
 
   /**

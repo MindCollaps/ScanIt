@@ -1,14 +1,10 @@
 import { Router } from 'express';
 import { join } from 'node:path';
 import { createReadStream, existsSync } from 'node:fs';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import type { ConfigRuntime } from '../../config/runtime.js';
 import type { JobService } from '../services/jobService.js';
 import type { AdapterRegistry } from '../../integration-core/adapter.js';
 import type { JobState, JobTrigger } from '../../shared/types/domain.js';
-
-const execFileAsync = promisify(execFile);
 
 interface CreateJobBody {
   scannerId: string;
@@ -228,25 +224,17 @@ export const createJobRouter = (
         return;
       }
 
-      const pdfPath = join(outputDir, 'output.pdf');
-
-      // Generate PDF from images using img2pdf if available, otherwise use convert
-      if (!existsSync(pdfPath)) {
-        const imagePaths = pages.map((p) => p.path);
-        try {
-          await execFileAsync('img2pdf', [...imagePaths, '-o', pdfPath], { timeout: 60000 });
-        } catch {
-          // Fall back to ImageMagick convert
-          try {
-            await execFileAsync('convert', [...imagePaths, pdfPath], { timeout: 60000 });
-          } catch {
-            response.status(500).json({
-              code: 'PDF_GENERATION_FAILED',
-              message: 'Neither img2pdf nor convert (ImageMagick) is available to generate PDF',
-            });
-            return;
-          }
-        }
+      let pdfPath: string;
+      try {
+        pdfPath = await jobService.ensurePdfFromPages(pages, {
+          optimize: snapshot.config.processing.pdf.optimize,
+        });
+      } catch {
+        response.status(500).json({
+          code: 'PDF_GENERATION_FAILED',
+          message: 'Neither img2pdf nor convert (ImageMagick) is available to generate PDF',
+        });
+        return;
       }
 
       response.setHeader('Content-Type', 'application/pdf');

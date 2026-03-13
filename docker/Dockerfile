@@ -19,7 +19,7 @@ FROM oven/bun:1 AS runtime
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-     sane-utils ca-certificates avahi-utils libavahi-client3 img2pdf imagemagick \
+    sane-utils ca-certificates avahi-utils libavahi-client3 img2pdf imagemagick qpdf \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

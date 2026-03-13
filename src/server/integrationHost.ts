@@ -95,5 +95,10 @@ export const createIntegrationHost = (
         return store.getUserPreset(id);
       },
     },
+    artifacts: {
+      ensurePdfFromPages(pages, options) {
+        return jobService.ensurePdfFromPages(pages, options);
+      },
+    },
   };
 };
